@@ -1,0 +1,14 @@
+# RISKS.md — open technical risks
+
+Known risks that sit beyond the current step. Each one names the step
+where it starts to matter and the plan for handling it. Remove an entry
+when it has been resolved, and note how.
+
+| # | Risk | Bites at | Plan |
+|---|---|---|---|
+| 1 | **Symmetry undo.** Appending the mirrored stroke in `canvasViewDrawingDidChange` is a programmatic `drawing` change. It probably doesn't join the user's undo group, so "undo removes the pair" may not work, and it may even clear the undo stack. | Step 4 | Run a small spike before building the canvas screen: draw, mirror, undo, redo on the simulator. If PencilKit's undo can't be grouped, manage the pair in our own `UndoManager` registration. |
+| 2 | **No `PKToolPicker`.** The system tool picker exposes the pixel eraser (creates `stroke.mask`) and pressure inks, both of which break the SVG exporter. | Step 4 | Use our own tool rail only, and set `canvasView.tool` in code. Never show `PKToolPicker`. |
+| 3 | **Gesture clashes.** Two-finger-tap undo and three-finger-tap redo need custom recognizers on a scroll view that already uses two fingers to pan and zoom. iPadOS also has its own three-finger edit gestures (swipe to undo, pinch to copy). | Step 4 | Use tap recognizers that require the pan to fail, and test them in the simulator and on device. If the system gestures win, the undo/redo buttons stay the main path. |
+| 4 | **Layer touch routing.** The Shapes layer is a SwiftUI overlay between two `PKCanvasView`s, so the Ink canvas on top swallows touches meant for shapes and text. | Step 4 | Turn hit-testing on only for the active layer, and give each layer explicit `allowsHitTesting` rules. |
+| 5 | **Liquid Glass on system chrome.** Building with the iPadOS 26 SDK gives system controls (sheets, bars) the glass look automatically, while DESIGN.md asks for flat surfaces. | Step 4+ | Style our own surfaces from `Theme`. If system chrome still clashes, decide then whether to add `UIDesignRequiresCompatibility`, a temporary opt-out that Apple will remove. |
+| 6 | **No physical iPad yet.** The real-device half of the export gate and the Definition of done need one. Learn thresholds also need finger testing on hardware. | Step 3 (device check), 8b, 10 | Use the simulator until then. The Mac Safari check of exported SVGs is an interim stand-in, not a replacement. |

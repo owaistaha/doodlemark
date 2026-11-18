@@ -1,0 +1,55 @@
+name: Doodlemark
+options:
+  bundleIdPrefix: com.owaistaha
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+# Signing team comes from the gitignored Local.xcconfig via Config/Base.xcconfig.
+# Don't add DEVELOPMENT_TEAM below: settings here override the xcconfig.
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "2"        # iPad only
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Doodlemark:
+    type: application
+    platform: iOS
+    sources:
+      - path: Doodlemark
+    info:
+      path: Doodlemark/Info.plist
+      properties:
+        CFBundleDisplayName: Doodlemark
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIAppFonts: []                 # Claude Code: list bundled OFL font files here
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.owaistaha.doodlemark
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  DoodlemarkTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: DoodlemarkTests
+    dependencies:
+      - target: Doodlemark
+schemes:
+  Doodlemark:
+    build:
+      targets:
+        Doodlemark: all
+        DoodlemarkTests: [test]
+    test:
+      targets:
+        - DoodlemarkTests
