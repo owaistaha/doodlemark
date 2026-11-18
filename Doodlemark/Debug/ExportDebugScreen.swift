@@ -30,6 +30,7 @@ struct ExportDebugScreen: View {
             }
             .padding(20)
             Text(message)
+                .accessibilityIdentifier("debugStatus")
                 .font(.footnote.monospaced())
                 .foregroundStyle(Theme.inkMuted)
                 .padding(.bottom, 20)
@@ -86,8 +87,13 @@ struct ExportDebugScreen: View {
     private func export(_ drawing: PKDrawing) {
         do {
             svg = try SVGExporter.svg(shapes: [], ink: drawing, text: nil)
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("doodlemark-export-test.svg")
+            let folder = FileManager.default.temporaryDirectory
+            let url = folder.appendingPathComponent("doodlemark-export-test.svg")
             try svg.write(to: url, atomically: true, encoding: .utf8)
+            // The raw strokes too, so a test can render them natively and diff
+            // against this SVG (SVGExportTests.testLastDebugExportMatchesNative).
+            try drawing.dataRepresentation()
+                .write(to: folder.appendingPathComponent("doodlemark-export-test.drawing"), options: .atomic)
             exportURL = url
             let b = drawing.bounds
             // What PencilKit stored for the last stroke, and what the exporter turns it into.
@@ -95,8 +101,12 @@ struct ExportDebugScreen: View {
             var lastStroke = ""
             if let last = drawing.strokes.last, let point = last.path.first {
                 let w = point.size.width
-                lastStroke = String(format: " · last stroke size.width %.2f → stroke-width %.2f",
-                                    w, SVGExporter.renderedMonolineWidth(pointWidth: w))
+                let widths = last.path.map(\.size.width)
+                lastStroke = String(format: " · pen %.2f, zoom %.3f", DebugInkCanvas.penWidth, DebugInkCanvas.lastZoom)
+                    + " · ink \(last.ink.inkType.rawValue)"
+                    + String(format: " · last stroke size.width %.2f (min %.2f, max %.2f, %d points) → stroke-width %.2f",
+                                    w, widths.min() ?? 0, widths.max() ?? 0, widths.count,
+                                    SVGExporter.renderedMonolineWidth(pointWidth: w))
             }
             message = drawing.strokes.isEmpty
                 ? "No strokes. Canvas space is 0–1024."
@@ -143,6 +153,7 @@ private struct DebugInkCanvas: UIViewRepresentable {
         let view = FittedCanvasView()
         view.canvas.delegate = context.coordinator
         view.canvas.drawing = drawing
+        view.accessibilityIdentifier = "debugInkCanvas"
         return view
     }
 
@@ -150,7 +161,7 @@ private struct DebugInkCanvas: UIViewRepresentable {
         let canvas = view.canvas
         canvas.tool = erasing
             ? PKEraserTool(.vector)
-            : PKInkingTool(.monoline, color: UIColor(Theme.ink), width: 8)
+            : PKInkingTool(.monoline, color: UIColor(Theme.ink), width: Self.penWidth)
         if canvas.drawing != drawing {
             context.coordinator.isUpdatingFromSwiftUI = true
             canvas.drawing = drawing
@@ -160,6 +171,16 @@ private struct DebugInkCanvas: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(drawing: $drawing) }
 
+    /// The tool width handed to PencilKit: the default Line size (16 → tool 8).
+    /// `-debugPenWidth N` sets a raw tool width instead, so a UI test can map
+    /// tool width → stored `size.width` (RISKS.md #9).
+    static var penWidth: CGFloat {
+        let value = UserDefaults.standard.double(forKey: "debugPenWidth")
+        return value > 0 ? value : LineSize.toolWidth(forSize: LineSize.defaultSize)
+    }
+
+    @MainActor static var lastZoom: CGFloat = 0
+
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         var drawing: Binding<PKDrawing>
         var isUpdatingFromSwiftUI = false
@@ -167,6 +188,7 @@ private struct DebugInkCanvas: UIViewRepresentable {
         init(drawing: Binding<PKDrawing>) { self.drawing = drawing }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            DebugInkCanvas.lastZoom = canvasView.zoomScale
             guard !isUpdatingFromSwiftUI else { return }
             drawing.wrappedValue = canvasView.drawing
         }

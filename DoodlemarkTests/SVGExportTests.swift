@@ -60,6 +60,34 @@ final class SVGExportTests: XCTestCase {
         try await assertGateFails("neg-wrong-color", export: GateFixtures.logoWithRecoloredUnderline)
     }
 
+    // MARK: Whatever was last drawn on the debug screen
+
+    /// Diffs the last drawing from the DEBUG export screen (finger, trackpad or
+    /// Pencil) against the exact SVG file that screen wrote. The test host is
+    /// the app, so both files are in this process's temporary folder. Skipped
+    /// when nothing has been drawn there yet.
+    func testLastDebugExportMatchesNative() async throws {
+        let folder = FileManager.default.temporaryDirectory
+        let drawingURL = folder.appendingPathComponent("doodlemark-export-test.drawing")
+        let svgURL = folder.appendingPathComponent("doodlemark-export-test.svg")
+        guard FileManager.default.fileExists(atPath: drawingURL.path) else {
+            throw XCTSkip("Nothing drawn on the debug export screen yet.")
+        }
+        let drawing = try PKDrawing(data: Data(contentsOf: drawingURL))
+        try XCTSkipIf(drawing.strokes.isEmpty, "The debug export screen is empty.")
+        let savedSVG = try String(contentsOf: svgURL, encoding: .utf8)
+        XCTAssertEqual(savedSVG, try SVGExporter.svg(shapes: [], ink: drawing, text: nil),
+                       "The saved SVG should be exactly what the exporter makes from the saved strokes")
+
+        for (i, stroke) in drawing.strokes.enumerated() {
+            let widths = stroke.path.map(\.size.width)
+            print("DEBUGDRAWING| stroke \(i): \(stroke.path.count) points, size.width \(widths.min() ?? 0)…\(widths.max() ?? 0), "
+                  + "ink \(stroke.ink.inkType.rawValue), transform \(stroke.transform), bounds \(stroke.renderBounds)")
+        }
+        let metrics = try await runGate("debug-drawing", native: GateScene(ink: drawing), svg: savedSVG)
+        XCTAssertTrue(metrics.passes, "debug-drawing: \(metrics)")
+    }
+
     // MARK: - Helpers
 
     private func assertGatePasses(_ name: String, file: StaticString = #filePath, line: UInt = #line) async throws {
@@ -76,8 +104,12 @@ final class SVGExportTests: XCTestCase {
     }
 
     private func runGate(_ name: String, native: GateScene, export: GateScene) async throws -> GateMetrics {
-        let nativeBitmap = try NativeRenderer.render(native)
         let svg = try SVGExporter.svg(shapes: export.shapes, ink: export.ink, text: export.text)
+        return try await runGate(name, native: native, svg: svg)
+    }
+
+    private func runGate(_ name: String, native: GateScene, svg: String) async throws -> GateMetrics {
+        let nativeBitmap = try NativeRenderer.render(native)
         let svgBitmap = try await SVGWebRenderer().render(svg: svg)
         let (metrics, diff) = GateComparison.compare(native: nativeBitmap, svg: svgBitmap)
 

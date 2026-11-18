@@ -33,7 +33,23 @@
   gives the same result. That's a nice side effect of the SVG decision.
 - Finger strokes are shakier than a Pencil's. Add light smoothing in the
   exporter (the RDP + curve fit already does this), and give the Ink pen a
-  sensible default width (≈ 8pt), so lines look clean without pressure.
+  sensible default Line size (16), so lines look clean without pressure.
+
+### Line size (Ink pen)
+The "Line size" control shows the **drawn thickness** in 1024 canvas space,
+4–40 in steps of 2, default 16. Raw PencilKit widths are never shown. Three
+widths are involved (measured on the iPadOS 26.5 simulator):
+- **size**: the drawn thickness, what the user sees and picks.
+- **tool width**: what `PKInkingTool(.monoline, width:)` gets. Always
+  `LineSize.toolWidth(forSize:)` = size / 2, never computed anywhere else.
+- **stored width**: what PencilKit writes to every `PKStrokePoint.size.width`
+  for a touch stroke: tool width + 2, i.e. (size + 4) / 2
+  (`FingerStrokeUITests.testToolWidthToStoredWidth`). It renders 2·w − 4 thick
+  (step 3 below), so size = 2·tool width.
+
+Don't pass (size + 4) / 2 to the tool. That's the stored width, and it would
+draw every line 4 px too thick. The tool → stored offset is only measured for
+touch input. Pencil input is unverified (RISKS.md #9).
 
 ## Security / privacy note
 No network calls at all in v1. No third-party SDKs (no analytics, crash
@@ -75,7 +91,9 @@ The design choices below make this risk small:
 3. Width: PencilKit does **not** draw a monoline stroke `point.size.width` thick.
    Measured: rendered = max(0, 2·w − 4) × transform scale, where w = median
    `point.size.width` (4 → 4, 8 → 12, 16 → 28; w ≤ 2 draws nothing). See
-   `SVGExporter.renderedMonolineWidth` and `MonolineWidthTests`.
+   `SVGExporter.renderedMonolineWidth` and `MonolineWidthTests`. The canvas
+   stores tool width + 2, so the exported `stroke-width` equals the Line size
+   (see "Line size" above).
 4. Color = `stroke.ink.color` → `#RRGGBB` + `stroke-opacity`.
 5. Shapes → `<path>` with `fill`, generated from the same geometry
    function that draws them on screen (one source of truth).

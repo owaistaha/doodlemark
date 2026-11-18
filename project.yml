@@ -51,12 +51,26 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.owaistaha.doodlemark.tests
     dependencies:
       - target: Doodlemark
+  DoodlemarkUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: DoodlemarkUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.owaistaha.doodlemark.uitests
+        TEST_TARGET_NAME: Doodlemark
+    dependencies:
+      - target: Doodlemark
 schemes:
   Doodlemark:
     build:
       targets:
         Doodlemark: all
         DoodlemarkTests: [test]
+        DoodlemarkUITests: [test]
     test:
       targets:
         - DoodlemarkTests
+        - DoodlemarkUITests

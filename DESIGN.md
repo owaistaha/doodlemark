@@ -47,6 +47,9 @@ thicker border or a weight change.
 - Top bar 72 pt: back, title + "Saved", undo/redo, Mirror and Grid toggles, primary "Preview & export".
 - Left tool rail 100 pt: Sketch, Ink, Shapes, Text, Eraser (icon + label, never icon only).
 - Right panel 300 pt: Layers (fixed 4, active one highlighted), Palette (3 swatches + "Try another"), tool options ("Line size", "Smooth my lines", "Pencil only").
+- "Line size" is a slider over the **line's real thickness** on the canvas
+  (4–40, steps of 2, default 16). Never show PencilKit's internal width;
+  `LineSize` converts (see TECH_SPEC "Line size").
 - Canvas: centered square on `canvasBackdrop`, with a floating dark hint pill at the bottom for the current mode.
 
 ## Voice
