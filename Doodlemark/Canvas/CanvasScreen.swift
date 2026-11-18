@@ -245,10 +245,16 @@ private struct CanvasArea: View {
             #if DEBUG
             .overlay(alignment: .topLeading) {
                 // Invisible; lets UI tests read the palette and Ink line colors.
-                Color.clear.frame(width: 1, height: 1)
-                    .accessibilityElement()
-                    .accessibilityLabel(model.debugColorSummary)
-                    .accessibilityIdentifier("debugColors")
+                VStack(spacing: 0) {
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel(model.debugColorSummary)
+                        .accessibilityIdentifier("debugColors")
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel(model.debugShapeSummary)
+                        .accessibilityIdentifier("debugShapes")
+                }
             }
             #endif
         }
@@ -260,7 +266,10 @@ private struct CanvasArea: View {
         case .sketch: "Sketch freely. This layer is never exported."
         case .ink: "Ink: trace clean lines over your sketch"
         case .eraser: "Eraser: touch a line on the \(model.eraserLayer.title) layer to remove it"
-        case .shapes: "Shapes are coming soon"
+        case .shapes:
+            if model.project.shapes.isEmpty { "Shapes: pick one on the right to add it" }
+            else if model.selectedShape == nil { "Tap a shape to pick it" }
+            else { "Drag to move. Pull a corner to resize. Two fingers turn it." }
         case .text: "Text is coming soon"
         }
     }
@@ -481,7 +490,7 @@ private struct SecondaryButton: View {
             .font(compact ? Theme.labelStrong : Theme.bodyStrong)
             .foregroundStyle(isEnabled ? Theme.ink : Theme.lineStrong)
             .padding(.horizontal, compact ? 12 : 16)
-            .frame(minHeight: compact ? 36 : Theme.Metrics.barButton)
+            .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 36 : Theme.Metrics.barButton)
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
             .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small)
                 .strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
@@ -528,15 +537,79 @@ private struct ToolOptions: View {
                     .font(Theme.body).foregroundStyle(Theme.inkMuted)
                 PencilOnlyRow(isOn: $model.pencilOnly)
             case .shapes:
-                Text("Shapes").sectionLabelStyle()
-                Text("Circles, squares, triangles and stars are coming soon.")
-                    .font(Theme.body).foregroundStyle(Theme.inkMuted)
+                ShapeOptions(model: model)
             case .text:
                 Text("Text").sectionLabelStyle()
                 Text("Adding your logo name is coming soon.")
                     .font(Theme.body).foregroundStyle(Theme.inkMuted)
             }
         }
+    }
+}
+
+/// Shapes tool: add a shape (drawn by `ShapeGeometry` in the current color),
+/// then Flip and Delete for the picked one.
+private struct ShapeOptions: View {
+    let model: CanvasModel
+
+    var body: some View {
+        // The picked shape's actions come first, so they're in view without scrolling.
+        if model.selectedShape != nil {
+            Text("Picked shape").sectionLabelStyle()
+            VStack(spacing: 12) {
+                SecondaryButton(title: "Flip sideways", symbol: "arrow.left.and.right") {
+                    model.flipSelectedShape(sideways: true)
+                }
+                .disabled(!model.canFlipSelectedShape(sideways: true))
+                .accessibilityIdentifier("flipSideways")
+                SecondaryButton(title: "Flip upside down", symbol: "arrow.up.and.down") {
+                    model.flipSelectedShape(sideways: false)
+                }
+                .disabled(!model.canFlipSelectedShape(sideways: false))
+                .accessibilityIdentifier("flipUpsideDown")
+                SecondaryButton(title: "Delete", symbol: "trash") { model.deleteSelectedShape() }
+                    .accessibilityIdentifier("deleteShape")
+            }
+            Text("Tap a color to fill it. Put two fingers on it to turn it.")
+                .font(Theme.small).foregroundStyle(Theme.inkMuted)
+                .padding(.bottom, 12)
+        }
+
+        Text("Add a shape").sectionLabelStyle()
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            ForEach(LogoShape.Kind.allCases, id: \.self) { kind in
+                AddShapeButton(kind: kind, color: model.penColor) { model.addShape(kind) }
+            }
+        }
+        Text("New shapes use the selected color.")
+            .font(Theme.small).foregroundStyle(Theme.inkMuted)
+    }
+}
+
+/// A shape kind as a big button: its real outline in the current color.
+private struct AddShapeButton: View {
+    let kind: LogoShape.Kind
+    let color: HexColor
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Path(ShapeGeometry.path(kind: kind, center: CGPoint(x: 16, y: 16), size: 32, rotation: 0))
+                    .fill(Color(cgColor: color.cgColor))
+                    .frame(width: 32, height: 32)
+                Text(kind.title).font(Theme.label).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 8)
+            }
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.toolButton)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card)
+                .strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add a \(kind.title.lowercased())")
+        .accessibilityIdentifier("add-\(kind.rawValue)")
     }
 }
 

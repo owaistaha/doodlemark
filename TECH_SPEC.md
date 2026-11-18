@@ -244,7 +244,8 @@ struct LogoText: Codable {
 ```
 **Shape bounds (step 5):** selection handles, hit-testing and snapping use the
 shape's real path bounds (`ShapeGeometry.path(for:).boundingBoxOfPath`), never
-the `size × size` box. A regular star is narrower than its box.
+the `size × size` box. A regular star is narrower than its box, and its bounds
+sit higher than its `center` (its bottom points reach cos 36° of the radius).
 
 Saving: debounce 1s after any change, write atomically (`.atomic`). Never
 write all three files on every stroke.
@@ -265,7 +266,8 @@ write all three files on every stroke.
   transform don't change. Lines in a color that isn't in the palette stay
   as they are. So that slots can always be told apart, a slot never gets a
   color within matching distance of another slot: it's nudged by 3 in green.
-- Tap a swatch = current color (Ink pen, new shapes). "Try another" = the next curated palette. Tap and hold = the system
+- Tap a swatch = current color (Ink pen, new shapes, and the picked shape's
+  fill, one undo step). "Try another" = the next curated palette. Tap and hold = the system
   color picker (`UIColorPickerViewController`, a popover from UIKit, because
   SwiftUI's `ColorPicker` only opens from its own color well). Every color it
   shows applies live; closing it makes the whole change one undo step (none
@@ -273,6 +275,38 @@ write all three files on every stroke.
   it was when the picker opened, so passing through another slot's color
   never merges two slots' lines.
 - The undo snapshot includes the palette.
+
+## Shapes (step 5b)
+All the maths is in `Canvas/ShapeEditing.swift` (pure, unit-tested); the
+gestures live in `CanvasStackView` and only feed it numbers.
+- **Add:** a tile per kind (drawn by `ShapeGeometry` in the current color)
+  adds that shape at (512, 512), size 320, in the current slot, and picks it.
+- **Pick:** tap. The topmost shape whose outline contains the point wins;
+  failing that, the topmost whose path bounds (+ 8 pt slop) contain it, so a
+  tap between a star's arms still picks the star. Empty canvas = nothing picked.
+- **Move:** one finger on any shape drags it (and picks it). Its centre stays
+  on the canvas.
+- **Resize:** one finger on a corner handle of the picked shape (handles on
+  the path bounds, 26 pt drawn, 64 pt touch target). Size follows the
+  finger's distance from the centre, so the corner stays under the finger;
+  size is kept in 40…1400.
+- **Two fingers:** if their midpoint is on the picked shape (bounds + 40 pt),
+  they move, resize and turn it; anywhere else they pan and zoom the canvas
+  as before. Increments are accumulated and the midpoint re-based when a
+  finger lands or lifts, so the shape never jumps.
+- **Snapping:** the centre of the path bounds snaps to x = 512 and/or
+  y = 512 within 10 view points (so it feels the same at any zoom); tangerine
+  guide lines show while snapped. Rotation always moves in 15° steps.
+- **Flip / Delete** for the picked shape, in the panel. All four kinds are
+  mirror-symmetric about their own vertical axis, so a flip is a rotation
+  (sideways r → −r, upside down r → π − r): no new model field, and
+  `ShapeGeometry` stays the only geometry. A flip that wouldn't change the
+  outline (a circle, an upright star sideways) is disabled.
+- **Undo:** each move/resize/turn gesture is one step. A one-finger drag that
+  turns into a two-finger gesture is still one step (nested edit session).
+- Drags are measured from the touch-down point, not from the pan
+  recognizer's `translation`, which leaves out the ~10 pt it takes the pan to
+  start (the shape lagged the finger by that much).
 
 ## Undo history
 One history for all four layers (`Canvas/CanvasHistory.swift`): every user

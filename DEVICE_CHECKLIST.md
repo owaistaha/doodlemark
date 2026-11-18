@@ -86,3 +86,37 @@ blank canvas at 100%.
     *Expected:* the swatches, the Shapes layer tile and every Ink line
     drawn in a palette color change together; each tap is one Undo.
 
+## Step 5b: shapes
+
+16. [ ] **Add and drag with a finger.** Shapes tool, tap Star, then drag the
+    star around with one finger.
+    *Expected:* the star appears in the middle in the selected color, with a
+    blue box and four round handles. It follows your finger without lagging
+    behind, and stops exactly where you lift.
+17. [ ] **Snap to the middle.** Drag the star slowly back across the centre.
+    *Expected:* near the middle it clicks onto the centre line(s) and orange
+    guide lines appear; they disappear when you lift. Moving on past the
+    centre pulls it off again without fighting you.
+18. [ ] **Resize from a corner.** Drag any of the four handles in and out.
+    *Expected:* the shape grows and shrinks around its centre, and the
+    handle stays under your finger. Handles are easy to hit with a
+    fingertip, also on a small shape.
+19. [ ] **Two fingers on the shape.** Put two fingers on the picked shape,
+    then pinch, spread and twist.
+    *Expected:* the shape shrinks, grows and turns in 15° clicks; the canvas
+    doesn't zoom. Lift one finger and put it back mid-gesture: the shape
+    doesn't jump. One Undo takes back the whole gesture.
+20. [ ] **Two fingers next to the shape.** Pinch on empty canvas away from
+    the picked shape.
+    *Expected:* the canvas zooms like before; the shape doesn't change.
+21. [ ] **Pick, fill, flip, delete.** Add a circle and a triangle that
+    overlap. Tap each; tap a swatch; use Flip upside down and Delete; tap
+    empty canvas.
+    *Expected:* a tap picks the shape under your finger (a tap between a
+    star's arms picks the star); a swatch fills the picked shape; the
+    triangle turns upside down; Delete removes it and Undo brings it back;
+    tapping empty canvas un-picks.
+22. [ ] **Pencil and shapes.** With Pencil only on, pick and drag a shape
+    with a finger, then with the Pencil.
+    *Expected:* both work: Pencil only is about drawing, not shapes.
+

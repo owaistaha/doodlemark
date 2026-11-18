@@ -101,6 +101,14 @@ final class CanvasModel {
     /// colors the picker goes through.
     private var colorEdit: (slot: PaletteSlot, before: CanvasSnapshot, inkSlots: [PaletteSlot?])?
 
+    /// The shape picked with the Shapes tool (handles, Flip, Delete, fill).
+    private(set) var selectedShapeID: LogoShape.ID?
+    /// Canvas-centre guides to show while a moved shape is snapped.
+    private(set) var snapGuides = SnapGuides()
+    /// A move/resize/turn gesture in progress. Nested gestures (one finger
+    /// becoming two) share it, so each gesture is exactly one undo step.
+    private var shapeEdit: (before: CanvasSnapshot, depth: Int)?
+
     init(project: Project) {
         self.project = project
     }
@@ -125,6 +133,7 @@ final class CanvasModel {
         default: break
         }
         tool = newTool
+        if newTool != .shapes { selectedShapeID = nil }
     }
 
     /// Tapping a layer row picks that layer's tool. The eraser stays the eraser
@@ -146,9 +155,14 @@ final class CanvasModel {
 
     // MARK: Palette
 
-    /// Tap on a swatch: that color becomes the current one.
+    /// Tap on a swatch: that color becomes the current one, and the selected
+    /// shape (if any) is filled with it, as one undo step.
     func chooseSlot(_ slot: PaletteSlot) {
         currentSlot = slot
+        guard let index = selectedShapeIndex, project.shapes[index].fill != slot else { return }
+        let before = snapshot
+        project.shapes[index].fill = slot
+        record(before)
     }
 
     /// "Try another": the next curated palette. Everything that uses a slot
@@ -196,6 +210,78 @@ final class CanvasModel {
         guard let edit = colorEdit else { return }
         colorEdit = nil
         if project.palette != edit.before.palette { record(edit.before) }
+    }
+
+    // MARK: Shapes
+
+    var selectedShape: LogoShape? { selectedShapeIndex.map { project.shapes[$0] } }
+    private var selectedShapeIndex: Int? {
+        selectedShapeID.flatMap { id in project.shapes.firstIndex { $0.id == id } }
+    }
+
+    /// Adds a shape at the canvas centre in the current color and selects it.
+    func addShape(_ kind: LogoShape.Kind) {
+        let before = snapshot
+        let shape = LogoShape(id: UUID(), kind: kind, center: ShapeEditing.canvasCenter,
+                              size: ShapeEditing.newShapeSize, rotation: 0, fill: currentSlot)
+        project.shapes.append(shape)
+        selectedShapeID = shape.id
+        hiddenLayers.remove(.shapes)
+        record(before)
+    }
+
+    /// Picks a shape (`nil` = nothing picked).
+    func selectShape(_ id: LogoShape.ID?) {
+        selectedShapeID = id.flatMap { id in project.shapes.contains { $0.id == id } ? id : nil }
+    }
+
+    /// A move, resize or turn gesture started.
+    func beginShapeEdit() {
+        if let edit = shapeEdit {
+            shapeEdit = (edit.before, edit.depth + 1)
+        } else {
+            shapeEdit = (snapshot, 1)
+        }
+    }
+
+    /// The gesture's current result for one shape (live, not an undo step yet).
+    func updateShape(_ shape: LogoShape, guides: SnapGuides = SnapGuides()) {
+        guard let index = project.shapes.firstIndex(where: { $0.id == shape.id }) else { return }
+        if project.shapes[index] != shape { project.shapes[index] = shape }
+        if snapGuides != guides { snapGuides = guides }
+    }
+
+    /// The gesture ended: one undo step if the shapes changed.
+    func endShapeEdit() {
+        guard let edit = shapeEdit else { return }
+        if edit.depth > 1 {
+            shapeEdit = (edit.before, edit.depth - 1)
+            return
+        }
+        shapeEdit = nil
+        snapGuides = SnapGuides()
+        if project.shapes != edit.before.shapes { record(edit.before) }
+    }
+
+    /// Whether Flip would visibly change the selected shape (a circle never does).
+    func canFlipSelectedShape(sideways: Bool) -> Bool {
+        guard let shape = selectedShape else { return false }
+        return !ShapeEditing.looksTheSame(shape, ShapeEditing.flipped(shape, sideways: sideways))
+    }
+
+    func flipSelectedShape(sideways: Bool) {
+        guard canFlipSelectedShape(sideways: sideways), let index = selectedShapeIndex else { return }
+        let before = snapshot
+        project.shapes[index] = ShapeEditing.flipped(project.shapes[index], sideways: sideways)
+        record(before)
+    }
+
+    func deleteSelectedShape() {
+        guard let index = selectedShapeIndex else { return }
+        let before = snapshot
+        project.shapes.remove(at: index)
+        selectedShapeID = nil
+        record(before)
     }
 
     // MARK: Changes and undo
@@ -266,6 +352,7 @@ final class CanvasModel {
         project.shapes = state.shapes
         project.text = state.text
         project.palette = state.palette
+        if selectedShapeIndex == nil { selectedShapeID = nil }
         restoreRequest += 1
     }
 }
@@ -278,6 +365,21 @@ extension CanvasModel {
         let palette = project.palette.map(\.hexString).joined(separator: " ")
         let inkColors = Set(ink.strokes.map { SVGExporter.inkColor($0.ink.color).color.hexString }).sorted()
         return "palette \(palette); ink \(inkColors.joined(separator: " "))"
+    }
+
+    /// "2 shapes; selected star 512 512 320 15°; guides x": the shapes and the
+    /// selected one (centre, size, rotation in degrees), for UI tests (`debugShapes`).
+    var debugShapeSummary: String {
+        var text = "\(project.shapes.count) shapes"
+        if let shape = selectedShape {
+            let degrees = Int((shape.rotation * 180 / .pi).rounded())
+            text += "; selected \(shape.kind.rawValue) \(Int(shape.center.x.rounded())) \(Int(shape.center.y.rounded()))"
+                + " \(Int(shape.size.rounded())) \(degrees)° fill \(shape.fill.number)"
+        }
+        if snapGuides.vertical || snapGuides.horizontal {
+            text += "; guides" + (snapGuides.vertical ? " x" : "") + (snapGuides.horizontal ? " y" : "")
+        }
+        return text
     }
 }
 #endif

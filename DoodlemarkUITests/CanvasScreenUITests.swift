@@ -225,7 +225,128 @@ final class CanvasScreenUITests: XCTestCase {
         try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")   // and the tap outside drew nothing
     }
 
+    /// Step 5b with synthesized touches: add, move (and snap back), resize by
+    /// a corner handle, pinch and turn with two fingers on the shape, flip,
+    /// delete, one undo per gesture, and two fingers off the shape still zoom.
+    @MainActor
+    func testAddMoveResizeTurnFlipAndDeleteAShape() throws {
+        let (app, stack) = launchLandscape()
+        let probe = app.descendants(matching: .any)["debugShapes"]
+        let zoom = app.descendants(matching: .any)["zoomPill"]
+        app.buttons["tool-shapes"].tap()
+        app.buttons["add-star"].tap()
+        var star = try shape(probe)
+        XCTAssertEqual(star.kind, "star")
+        XCTAssertEqual(star.center, CGPoint(x: 512, y: 512))
+        XCTAssertEqual(star.size, 320)
+        XCTAssertEqual(star.fill, 2, "the current color")
+
+        // One finger on the star moves it.
+        drag(stack, (0.5, 0.5), (0.65, 0.5))
+        let moved = try shape(probe)
+        XCTAssertEqual(moved.center.x, 512 + 0.15 * 1024, accuracy: 12)
+        app.buttons["undo"].tap()
+        XCTAssertEqual(try shape(probe).center, star.center, "one undo for the whole drag")
+        app.buttons["redo"].tap()
+        XCTAssertEqual(try shape(probe).center, moved.center)
+
+        // Dragged back close to the middle, it snaps to x = 512.
+        drag(stack, (0.65, 0.5), (0.506, 0.5))
+        star = try shape(probe)
+        XCTAssertEqual(star.center.x, 512, "snapped")
+
+        // The bottom-right corner handle (on the path bounds) resizes it.
+        let r = star.size / 2
+        let corner = (Double((star.center.x + r * cos(.pi / 10)) / 1024), Double((star.center.y + r * cos(.pi / 5)) / 1024))
+        drag(stack, corner, (corner.0 + 0.08, corner.1 + 0.08))
+        let resized = try shape(probe)
+        XCTAssertGreaterThan(resized.size, star.size * 1.3)
+        XCTAssertEqual(resized.center.x, star.center.x, accuracy: 1, "resizes around its centre")
+
+        // Two fingers on the shape: the shape grows, the canvas doesn't zoom.
+        stack.pinch(withScale: 0.7, velocity: -1)
+        let pinched = try shape(probe)
+        XCTAssertLessThan(pinched.size, resized.size * 0.9)
+        XCTAssertEqual(zoom.label, "Zoom 100 percent. Tap to fit the canvas.", "the canvas stays put")
+        stack.rotate(.pi / 4, withVelocity: 1)
+        let turned = try shape(probe)
+        XCTAssertNotEqual(turned.rotation, 0)
+        XCTAssertEqual(turned.rotation % 15, 0, "15° steps")
+        app.buttons["undo"].tap()
+        XCTAssertEqual(try shape(probe).rotation, 0, "undo takes back the turn only")
+        XCTAssertEqual(try shape(probe).size, pinched.size)
+
+        app.buttons["flipUpsideDown"].tap()
+        XCTAssertEqual(try shape(probe).rotation, 180)
+        XCTAssertFalse(app.buttons["flipSideways"].isEnabled, "an upside-down star looks the same mirrored")
+
+        app.buttons["deleteShape"].tap()
+        XCTAssertEqual(try shape(probe).count, 0)
+        app.buttons["undo"].tap()
+        XCTAssertEqual(try shape(probe).count, 1)
+
+        // Nothing picked now: two fingers zoom the canvas again.
+        stack.pinch(withScale: 1.8, velocity: 1)
+        XCTAssertNotEqual(zoom.label, "Zoom 100 percent. Tap to fit the canvas.")
+        zoom.tap()
+    }
+
+    /// A small logo with two shapes for the report: a big circle in color 1
+    /// behind a picked star in color 3.
+    @MainActor
+    func testShapesScreenshot() throws {
+        let (app, stack) = launchLandscape()
+        let probe = app.descendants(matching: .any)["debugShapes"]
+        app.buttons["tool-shapes"].tap()
+        app.descendants(matching: .any)["swatch-1"].tap()
+        app.buttons["add-circle"].tap()
+        // Grow the circle from its bottom-right handle (path bounds = its box).
+        drag(stack, (0.65625, 0.65625), (0.76, 0.76))
+        XCTAssertGreaterThan(try shape(probe).size, 450)
+        app.descendants(matching: .any)["swatch-3"].tap()                 // refills the circle
+        XCTAssertEqual(try shape(probe).fill, 3)
+        app.descendants(matching: .any)["swatch-2"].tap()                 // and back: color 2 ink-dark
+        app.descendants(matching: .any)["swatch-1"].tap()
+        stack.coordinate(withNormalizedOffset: CGVector(dx: 0.04, dy: 0.04)).tap()   // pick nothing
+        XCTAssertEqual(try shape(probe).count, 1)
+        app.descendants(matching: .any)["swatch-3"].tap()
+        app.buttons["add-star"].tap()
+        XCTAssertEqual(try shape(probe).fill, 3)
+        keepScreenshot(app, "shapes-picked")
+        app.scrollViews.firstMatch.swipeUp(velocity: .slow)            // the rest of the panel
+        keepScreenshot(app, "shapes-panel")
+    }
+
     // MARK: Helpers
+
+    private struct ShapeState {
+        var count: Int
+        var kind = ""
+        var center = CGPoint.zero
+        var size: CGFloat = 0
+        var rotation = 0
+        var fill = 0
+    }
+
+    /// Reads `debugShapes`: "1 shapes; selected star 512 512 320 0° fill 2".
+    @MainActor
+    private func shape(_ probe: XCUIElement) throws -> ShapeState {
+        sleep(1)    // let the last gesture's update land
+        let label = probe.label
+        let parts = label.components(separatedBy: "; ")
+        var state = ShapeState(count: Int(parts[0].components(separatedBy: " ")[0]) ?? -1)
+        if let picked = parts.first(where: { $0.hasPrefix("selected ") }) {
+            let f = picked.components(separatedBy: " ")
+            state.kind = f[1]
+            state.center = CGPoint(x: Double(f[2]) ?? -1, y: Double(f[3]) ?? -1)
+            state.size = CGFloat(Double(f[4]) ?? -1)
+            state.rotation = Int(f[5].replacingOccurrences(of: "°", with: "")) ?? -1
+            state.fill = Int(f[7]) ?? -1
+        } else if state.count > 0, label.contains("selected") {
+            XCTFail("can't read \(label)")
+        }
+        return state
+    }
 
     @MainActor
     private func waitForLabel(_ element: XCUIElement, _ label: String) throws {

@@ -55,6 +55,14 @@ thicker border or a weight change.
   (4–40, steps of 2, default 16). Never show PencilKit's internal width;
   `LineSize` converts (see TECH_SPEC "Line size").
 - Canvas: centered square on `canvasBackdrop`, with a floating dark hint pill at the bottom for the current mode.
+- Shapes tool panel: "Picked shape" (Flip sideways, Flip upside down, Delete as
+  full-width Secondary buttons) first when a shape is picked, then "Add a
+  shape": a 2 × 2 grid of 76 pt tiles showing each shape in the current color
+  with its name.
+- Picked shape on the canvas: a 2 pt `pencilBlue` box on its outline's bounds
+  with four 26 pt white handles ringed in `pencilBlue` (64 pt touch target).
+  Snap guides: 2 pt `tangerine` lines through the canvas centre, only while a
+  moved shape is snapped. All drawn at the same size at any zoom.
 
 ## Voice
 Friendly words over jargon: "Smooth my lines", not "stroke stabilization";

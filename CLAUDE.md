@@ -136,6 +136,7 @@ Doodlemark/
     TextLayer.swift
     Symmetry.swift
     ShapeGeometry.swift         (single source of truth for shape paths)
+    ShapeEditing.swift          (move/resize/turn/snap/flip/hit-test maths on path bounds)
   Export/
     SVGExporter.swift
     GlyphPaths.swift
