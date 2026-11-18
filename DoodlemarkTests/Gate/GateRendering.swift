@@ -9,6 +9,8 @@ struct GateScene {
     var shapes: [LogoShape] = []
     var ink = PKDrawing()
     var text: LogoText?
+    /// Shapes and text are filled from this (the logo uses the starter palette).
+    var palette = Palettes.starter
 }
 
 /// A 1024×1024 RGBA8 sRGB bitmap composited on white. Both renders become one
@@ -89,25 +91,25 @@ enum NativeRenderer {
             // Same layer order as the SVG: Shapes, Ink, Text.
             for shape in scene.shapes {
                 cg.addPath(ShapeGeometry.path(for: shape))
-                cg.setFillColor(shape.fill.cgColor)
+                cg.setFillColor(shape.fill.color(in: scene.palette).cgColor)
                 cg.fillPath()
             }
 
             inkImage.draw(in: rect)
 
             if let text = scene.text {
-                do { try drawText(text, in: cg) } catch { textError = error }
+                do { try drawText(text, color: text.fill.color(in: scene.palette), in: cg) } catch { textError = error }
             }
         }
         if let textError { throw textError }
         return Bitmap(image.cgImage!)
     }
 
-    private static func drawText(_ text: LogoText, in cg: CGContext) throws {
+    private static func drawText(_ text: LogoText, color: HexColor, in cg: CGContext) throws {
         let font = try GlyphPaths.font(named: text.fontName, size: text.pointSize)
         let attributed = NSAttributedString(string: text.string, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): text.fill.cgColor,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
         ])
         let line = CTLineCreateWithAttributedString(attributed)
         let box = GlyphPaths.typographicBox(of: line)

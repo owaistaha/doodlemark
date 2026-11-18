@@ -230,7 +230,7 @@ struct LogoShape: Codable, Identifiable {
   var center: CGPoint         // canvas space (0...1024)
   var size: CGFloat
   var rotation: Double        // radians
-  var fill: HexColor
+  var fill: PaletteSlot       // 0/1/2, never a hex (see "Palette")
 }
 
 struct LogoText: Codable {
@@ -239,7 +239,7 @@ struct LogoText: Codable {
   var center: CGPoint
   var pointSize: CGFloat
   var rotation: Double
-  var fill: HexColor
+  var fill: PaletteSlot       // 0/1/2
 }
 ```
 **Shape bounds (step 5):** selection handles, hit-testing and snapping use the
@@ -249,10 +249,35 @@ the `size × size` box. A regular star is narrower than its box.
 Saving: debounce 1s after any change, write atomically (`.atomic`). Never
 write all three files on every stroke.
 
+## Palette
+- 12 curated 3-color palettes in `Models/Palettes.swift`. Rules, checked by
+  `PaletteTests`: the second color is the darkest (the default Ink pen draws
+  dark lines whatever the palette) with ≥ 3:1 contrast against the other two
+  (WCAG's minimum for graphics); the three colors are clearly different
+  (CIE76 ΔE ≥ 25); each shows on the white canvas (≥ 1.4:1 against white).
+- Shapes and text store a **palette slot** (0/1/2), never a hex. The screen
+  and the exporter resolve it through `project.palette`, so changing a
+  slot's color recolors everything that uses it.
+- Ink strokes are PencilKit strokes and only know a color. A stroke belongs
+  to the slot whose color it has (± 1 per sRGB channel; the pen only draws
+  palette colors), and a slot change rewrites `stroke.ink.color` for that
+  slot's strokes (`Canvas/InkPalette.swift`). Ink type, points, widths and
+  transform don't change. Lines in a color that isn't in the palette stay
+  as they are. So that slots can always be told apart, a slot never gets a
+  color within matching distance of another slot: it's nudged by 3 in green.
+- Tap a swatch = current color (Ink pen, new shapes). "Try another" = the next curated palette. Tap and hold = the system
+  color picker (`UIColorPickerViewController`, a popover from UIKit, because
+  SwiftUI's `ColorPicker` only opens from its own color well). Every color it
+  shows applies live; closing it makes the whole change one undo step (none
+  if the color ended up the same). Slot strokes are taken from the drawing as
+  it was when the picker opened, so passing through another slot's color
+  never merges two slots' lines.
+- The undo snapshot includes the palette.
+
 ## Undo history
 One history for all four layers (`Canvas/CanvasHistory.swift`): every user
 change records a snapshot of the state *before* it (Sketch drawing, Ink
-drawing, shapes, text). Undo/redo swap snapshots and the canvases reload.
+drawing, shapes, text, palette). Undo/redo swap snapshots and the canvases reload.
 - PencilKit's own undo is off on both canvases: they return a
   `HistoryUndoManager` whose registration is disabled. (PencilKit's undo
   can't undo a programmatically appended mirror copy; step 4a spike, RISKS #1.)

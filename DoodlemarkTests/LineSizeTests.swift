@@ -31,7 +31,7 @@ final class LineSizeTests: XCTestCase {
                            "step 2 keeps tool widths whole")
 
             let stroke = Fixtures.monolineStroke([CGPoint(x: 100, y: 100), CGPoint(x: 400, y: 100)], width: stored)
-            let svg = try SVGExporter.svg(shapes: [], ink: PKDrawing(strokes: [stroke]), text: nil)
+            let svg = SVGExporter.svg(ink: PKDrawing(strokes: [stroke]))
             XCTAssertTrue(svg.contains("stroke-width=\"\(SVGExporter.format(size))\""), "size \(size): \(svg)")
         }
     }

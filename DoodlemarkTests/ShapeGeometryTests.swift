@@ -72,7 +72,7 @@ final class ShapeGeometryTests: XCTestCase {
     }
 
     func testPathForShapeUsesItsFields() {
-        let shape = LogoShape(id: UUID(), kind: .circle, center: center, size: size, rotation: 0, fill: Fixtures.ink)
+        let shape = LogoShape(id: UUID(), kind: .circle, center: center, size: size, rotation: 0, fill: .second)
         XCTAssertEqual(ShapeGeometry.path(for: shape).boundingBoxOfPath, bounds(.circle))
     }
 }

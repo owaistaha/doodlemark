@@ -13,7 +13,7 @@ enum Fixtures {
 
     static func pizzaText(center: CGPoint = CGPoint(x: 512, y: 800), rotation: Double = 0) -> LogoText {
         LogoText(string: "Pizza", fontName: logoFont, center: center,
-                 pointSize: 120, rotation: rotation, fill: ink)
+                 pointSize: 120, rotation: rotation, fill: .second)
     }
 
     static func fullProject() -> Project {
@@ -27,7 +27,7 @@ enum Fixtures {
                 LogoShape(
                     id: UUID(), kind: kind,
                     center: CGPoint(x: 200 + 200 * CGFloat(index), y: 300),
-                    size: 150, rotation: Double(index) * 0.25, fill: tangerine)
+                    size: 150, rotation: Double(index) * 0.25, fill: .first)
             },
             text: pizzaText(),
             symmetryOn: true,

@@ -7,7 +7,8 @@ final class CanvasHistoryTests: XCTestCase {
         let strokes = (0..<n).map { i in
             Fixtures.monolineStroke([CGPoint(x: 10, y: CGFloat(i) * 10 + 10), CGPoint(x: 100, y: CGFloat(i) * 10 + 10)], width: 8)
         }
-        return CanvasSnapshot(sketch: PKDrawing(), ink: PKDrawing(strokes: strokes), shapes: [], text: nil)
+        return CanvasSnapshot(sketch: PKDrawing(), ink: PKDrawing(strokes: strokes), shapes: [], text: nil,
+                              palette: Palettes.starter)
     }
 
     /// `PKDrawing` equality is identity (each drawing has its own UUID), so

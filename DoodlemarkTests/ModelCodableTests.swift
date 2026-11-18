@@ -32,7 +32,7 @@ final class ModelCodableTests: XCTestCase {
         for kind in LogoShape.Kind.allCases {
             try roundTrip(LogoShape(
                 id: UUID(), kind: kind, center: CGPoint(x: 12.5, y: 1000.25),
-                size: 333.3, rotation: -1.25, fill: Fixtures.butter))
+                size: 333.3, rotation: -1.25, fill: .third))
         }
     }
 

@@ -69,7 +69,7 @@ enum GateFixtures {
         ("wobbly", GateScene(ink: PKDrawing(strokes: [wobbly]))),
         ("transformed", GateScene(ink: PKDrawing(strokes: [transformed]))),
         ("dots", GateScene(ink: PKDrawing(strokes: dots))),
-        ("shapes", GateScene(shapes: allShapes)),
+        ("shapes", GateScene(shapes: allShapes, palette: allShapesPalette)),
         ("text", GateScene(text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 512)))),
         ("text-rotated", GateScene(text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 512), rotation: -0.35))),
         ("logo", logo),
@@ -83,12 +83,15 @@ enum GateFixtures {
         return GateScene(ink: PKDrawing(strokes: [smoothed, Symmetry.mirrored(smoothed)]))
     }
 
+    /// Three slots for four shapes: the square and the star share blue.
+    static let allShapesPalette = [Fixtures.tangerine, pencilBlue, Fixtures.butter]
+
     static var allShapes: [LogoShape] {
         [
-            LogoShape(id: UUID(), kind: .circle, center: CGPoint(x: 280, y: 280), size: 300, rotation: 0, fill: Fixtures.tangerine),
-            LogoShape(id: UUID(), kind: .roundedSquare, center: CGPoint(x: 740, y: 280), size: 280, rotation: 0.3, fill: pencilBlue),
-            LogoShape(id: UUID(), kind: .triangle, center: CGPoint(x: 280, y: 740), size: 300, rotation: -0.2, fill: Fixtures.butter),
-            LogoShape(id: UUID(), kind: .star, center: CGPoint(x: 740, y: 740), size: 320, rotation: 0.15, fill: Fixtures.ink),
+            LogoShape(id: UUID(), kind: .circle, center: CGPoint(x: 280, y: 280), size: 300, rotation: 0, fill: .first),
+            LogoShape(id: UUID(), kind: .roundedSquare, center: CGPoint(x: 740, y: 280), size: 280, rotation: 0.3, fill: .second),
+            LogoShape(id: UUID(), kind: .triangle, center: CGPoint(x: 280, y: 740), size: 300, rotation: -0.2, fill: .third),
+            LogoShape(id: UUID(), kind: .star, center: CGPoint(x: 740, y: 740), size: 320, rotation: 0.15, fill: .second),
         ]
     }
 
@@ -97,7 +100,7 @@ enum GateFixtures {
     static var logo: GateScene {
         GateScene(
             shapes: [LogoShape(id: UUID(), kind: .circle, center: CGPoint(x: 512, y: 440),
-                               size: 520, rotation: 0, fill: Fixtures.tangerine)],
+                               size: 520, rotation: 0, fill: .first)],
             ink: PKDrawing(strokes: [arc, zigzag, diagonal, underline]),
             text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 880)))
     }

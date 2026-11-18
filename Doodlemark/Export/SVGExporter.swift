@@ -44,10 +44,18 @@ enum SVGExporter {
     }
 
     static func svg(project: Project, ink: PKDrawing) throws(GlyphPaths.Failure) -> String {
-        try svg(shapes: project.shapes, ink: ink, text: project.text)
+        try svg(palette: project.palette, shapes: project.shapes, ink: ink, text: project.text)
     }
 
-    static func svg(shapes: [LogoShape], ink: PKDrawing, text: LogoText?) throws(GlyphPaths.Failure) -> String {
+    /// Ink lines only. They carry their own colors, so no palette is needed.
+    static func svg(ink: PKDrawing) -> String {
+        // Without text there are no glyphs to fail on.
+        (try? svg(palette: Palettes.starter, shapes: [], ink: ink, text: nil)) ?? ""
+    }
+
+    /// Shapes and text are filled with their palette slot's color in `palette`.
+    static func svg(palette: [HexColor], shapes: [LogoShape], ink: PKDrawing,
+                    text: LogoText?) throws(GlyphPaths.Failure) -> String {
         let size = format(canvasSize)
         var lines = [
             #"<svg xmlns="http://www.w3.org/2000/svg" width="\#(size)" height="\#(size)" viewBox="0 0 \#(size) \#(size)">"#
@@ -57,7 +65,7 @@ enum SVGExporter {
             lines.append(#"  <g id="shapes">"#)
             for shape in shapes {
                 let d = pathData(ShapeGeometry.path(for: shape))
-                lines.append(#"    <path fill="\#(shape.fill.hexString)" d="\#(d)"/>"#)
+                lines.append(#"    <path fill="\#(shape.fill.color(in: palette).hexString)" d="\#(d)"/>"#)
             }
             lines.append("  </g>")
         }
@@ -73,7 +81,7 @@ enum SVGExporter {
             let outline = try GlyphPaths.path(for: text)
             if !outline.isEmpty {
                 lines.append(#"  <g id="text">"#)
-                lines.append(#"    <path fill="\#(text.fill.hexString)" d="\#(pathData(outline))"/>"#)
+                lines.append(#"    <path fill="\#(text.fill.color(in: palette).hexString)" d="\#(pathData(outline))"/>"#)
                 lines.append("  </g>")
             }
         }

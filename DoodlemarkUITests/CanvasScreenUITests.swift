@@ -190,7 +190,51 @@ final class CanvasScreenUITests: XCTestCase {
         XCTAssertEqual(grid.value as? String, "Off")
     }
 
+    /// Step 5a: Try another recolors real, finger-drawn Ink lines (through
+    /// PencilKit's own color storage), undo brings them back, and tap and
+    /// hold opens the system color picker without making an undo step.
+    @MainActor
+    func testTryAnotherRecolorsDrawnLinesAndHoldOpensThePicker() throws {
+        let (app, stack) = launchLandscape()
+        let colors = app.descendants(matching: .any)["debugColors"]
+        let starter = "palette #FF5A1F #1C1B22 #FFC93C"
+        try waitForLabel(colors, "\(starter); ink ")
+
+        drag(stack, (0.2, 0.3), (0.8, 0.3))                         // pen = color 2 (dark)
+        app.descendants(matching: .any)["swatch-1"].tap()
+        drag(stack, (0.2, 0.5), (0.8, 0.5))                         // pen = color 1
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")
+        try waitForLabel(colors, "\(starter); ink #1C1B22 #FF5A1F")
+
+        app.buttons["tryAnother"].tap()
+        try waitForLabel(colors, "palette #1E88E5 #0D1B3E #4DD0E1; ink #0D1B3E #1E88E5")
+        keepScreenshot(app, "palette-try-another")
+
+        app.buttons["undo"].tap()
+        try waitForLabel(colors, "\(starter); ink #1C1B22 #FF5A1F")
+        XCTAssertTrue(app.buttons["redo"].isEnabled)
+
+        app.descendants(matching: .any)["swatch-3"].press(forDuration: 1.0)
+        let picker = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Color 3'")).firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "the system color picker opens")
+        keepScreenshot(app, "palette-color-picker")
+        stack.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.1)).tap()   // outside the popover
+        XCTAssertTrue(picker.waitForNonExistence(timeout: 5))
+        try waitForLabel(colors, "\(starter); ink #1C1B22 #FF5A1F")
+        XCTAssertTrue(app.buttons["redo"].isEnabled, "closing the picker unchanged is no undo step")
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")   // and the tap outside drew nothing
+    }
+
     // MARK: Helpers
+
+    @MainActor
+    private func waitForLabel(_ element: XCUIElement, _ label: String) throws {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", label), object: element)
+        if XCTWaiter().wait(for: [expectation], timeout: 5) != .completed {
+            XCTFail("expected label \(label), got \(element.exists ? element.label : "no element")")
+            throw XCTSkip("stopping")
+        }
+    }
 
     @MainActor
     private func launchLandscape() -> (XCUIApplication, XCUIElement) {

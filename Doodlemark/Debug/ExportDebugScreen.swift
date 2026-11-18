@@ -86,7 +86,7 @@ struct ExportDebugScreen: View {
 
     private func export(_ drawing: PKDrawing) {
         do {
-            svg = try SVGExporter.svg(shapes: [], ink: drawing, text: nil)
+            svg = SVGExporter.svg(ink: drawing)
             let folder = FileManager.default.temporaryDirectory
             let url = folder.appendingPathComponent("doodlemark-export-test.svg")
             try svg.write(to: url, atomically: true, encoding: .utf8)

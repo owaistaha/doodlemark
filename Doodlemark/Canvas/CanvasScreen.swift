@@ -242,6 +242,15 @@ private struct CanvasArea: View {
                 HintPill(text: hint)
                     .padding(.bottom, (verticalInset - Theme.Metrics.minTarget) / 2)
             }
+            #if DEBUG
+            .overlay(alignment: .topLeading) {
+                // Invisible; lets UI tests read the palette and Ink line colors.
+                Color.clear.frame(width: 1, height: 1)
+                    .accessibilityElement()
+                    .accessibilityLabel(model.debugColorSummary)
+                    .accessibilityIdentifier("debugColors")
+            }
+            #endif
         }
     }
 
@@ -308,19 +317,7 @@ private struct CanvasRightPanel: View {
                         LayerRow(model: model, layer: layer)
                     }
                 }
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Palette").sectionLabelStyle()
-                    HStack(spacing: 16) {
-                        ForEach(model.project.palette.indices, id: \.self) { index in
-                            Swatch(color: model.project.palette[index], selected: model.penColorIndex == index,
-                                   number: index + 1, count: model.project.palette.count) {
-                                model.penColorIndex = index
-                            }
-                        }
-                    }
-                    Text("Your ink pen uses the selected color.")
-                        .font(Theme.small).foregroundStyle(Theme.inkMuted)
-                }
+                PaletteSection(model: model)
                 ToolOptions(model: model)
                 #if DEBUG
                 DebugLinks()
@@ -410,26 +407,88 @@ private struct LayerRow: View {
     }
 }
 
+// MARK: Palette
+
+/// Three swatches and "Try another" (design/Canvas.png). Tap a swatch to make
+/// it the current color; tap and hold to change that color everywhere.
+private struct PaletteSection: View {
+    let model: CanvasModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Palette").sectionLabelStyle()
+                Spacer(minLength: 0)
+                SecondaryButton(title: "Try another", compact: true) { model.tryAnotherPalette() }
+                    .accessibilityIdentifier("tryAnother")
+            }
+            HStack(spacing: 16) {
+                ForEach(PaletteSlot.allCases) { slot in
+                    Swatch(color: model.project.color(for: slot), slot: slot,
+                           selected: model.currentSlot == slot,
+                           onTap: { model.chooseSlot(slot) },
+                           onHold: { frame in SlotColorPicker.present(slot: slot, model: model, from: frame) })
+                }
+            }
+            Text("Tap and hold a color to change it everywhere.")
+                .font(Theme.small).foregroundStyle(Theme.inkMuted)
+        }
+    }
+}
+
 /// Palette swatch. Selected gets a blue ring, not just a color change.
 private struct Swatch: View {
     let color: HexColor
+    let slot: PaletteSlot
     let selected: Bool
-    let number: Int
-    let count: Int
+    let onTap: () -> Void
+    let onHold: (CGRect) -> Void
+    @State private var frame = CGRect.zero
+
+    var body: some View {
+        Circle()
+            .fill(Color(cgColor: color.cgColor))
+            .overlay(Circle().strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
+            .padding(6)
+            .overlay(Circle().strokeBorder(selected ? Theme.pencilBlue : .clear, lineWidth: 3))
+            .frame(width: Theme.Metrics.swatch + 12, height: Theme.Metrics.swatch + 12)
+            .contentShape(Circle())
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+            .onTapGesture(perform: onTap)
+            .onLongPressGesture(minimumDuration: 0.4) { onHold(frame) }
+            .accessibilityElement()
+            .accessibilityLabel("Color \(slot.number) of \(PaletteSlot.allCases.count)")
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { onTap() }
+            .accessibilityAction(named: "Change this color everywhere") { onHold(frame) }
+            .accessibilityIdentifier("swatch-\(slot.number)")
+    }
+}
+
+/// "Secondary" from the style guide: white with a border, ink text.
+private struct SecondaryButton: View {
+    let title: String
+    var symbol: String?
+    var compact = false
     let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
-            Circle()
-                .fill(Color(cgColor: color.cgColor))
-                .overlay(Circle().strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
-                .padding(6)
-                .overlay(Circle().strokeBorder(selected ? Theme.pencilBlue : .clear, lineWidth: 3))
-                .frame(width: Theme.Metrics.swatch + 12, height: Theme.Metrics.swatch + 12)
+            Group {
+                if let symbol { Label(title, systemImage: symbol) } else { Text(title) }
+            }
+            .font(compact ? Theme.labelStrong : Theme.bodyStrong)
+            .foregroundStyle(isEnabled ? Theme.ink : Theme.lineStrong)
+            .padding(.horizontal, compact ? 12 : 16)
+            .frame(minHeight: compact ? 36 : Theme.Metrics.barButton)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small)
+                .strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
+            .frame(minHeight: Theme.Metrics.minTarget)   // 44 pt target even when it looks compact
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Color \(number) of \(count)")
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

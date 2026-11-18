@@ -119,7 +119,7 @@ Doodlemark/
     Theme.swift                 (tokens from DESIGN.md)
   Models/
     Project.swift               (Project, LogoShape, LogoText, HexColor)
-    Palettes.swift              (curated 3-color sets)
+    Palettes.swift              (12 curated 3-color sets; fills are palette slots)
     Prompts.swift               (starter prompt cards)
   Canvas/
     CanvasScreen.swift
@@ -130,6 +130,8 @@ Doodlemark/
     CanvasViewport.swift        (one zoom/offset for every layer)
     LineSize.swift              (Line size ↔ PencilKit tool width; the only conversion)
     PencilCanvas.swift          (UIViewRepresentable around the layer stack)
+    InkPalette.swift            (Ink lines ↔ palette slots: recolor by slot)
+    SlotColorPicker.swift       (tap and hold a swatch: system color picker popover)
     ShapesLayer.swift
     TextLayer.swift
     Symmetry.swift

@@ -77,7 +77,7 @@ final class SVGExportTests: XCTestCase {
         let drawing = try PKDrawing(data: Data(contentsOf: drawingURL))
         try XCTSkipIf(drawing.strokes.isEmpty, "The debug export screen is empty.")
         let savedSVG = try String(contentsOf: svgURL, encoding: .utf8)
-        XCTAssertEqual(savedSVG, try SVGExporter.svg(shapes: [], ink: drawing, text: nil),
+        XCTAssertEqual(savedSVG, SVGExporter.svg(ink: drawing),
                        "The saved SVG should be exactly what the exporter makes from the saved strokes")
 
         for (i, stroke) in drawing.strokes.enumerated() {
@@ -105,7 +105,7 @@ final class SVGExportTests: XCTestCase {
     }
 
     private func runGate(_ name: String, native: GateScene, export: GateScene) async throws -> GateMetrics {
-        let svg = try SVGExporter.svg(shapes: export.shapes, ink: export.ink, text: export.text)
+        let svg = try SVGExporter.svg(palette: export.palette, shapes: export.shapes, ink: export.ink, text: export.text)
         return try await runGate(name, native: native, svg: svg)
     }
 

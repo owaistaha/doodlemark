@@ -13,13 +13,13 @@ final class SVGExporterTests: XCTestCase {
     func testShapeAndStrokeMatchesSnapshot() throws {
         let shape = LogoShape(
             id: UUID(), kind: .circle, center: CGPoint(x: 512, y: 400),
-            size: 300, rotation: 0, fill: Fixtures.tangerine)
+            size: 300, rotation: 0, fill: .first)
         // A straight stroke, moved down 50pt by its transform: the output must show y = 750.
         let stroke = Fixtures.monolineStroke(
             [CGPoint(x: 200, y: 700), CGPoint(x: 500, y: 700), CGPoint(x: 800, y: 700)],
             transform: CGAffineTransform(translationX: 0, y: 50))
 
-        let actual = try SVGExporter.svg(shapes: [shape], ink: PKDrawing(strokes: [stroke]), text: nil)
+        let actual = try SVGExporter.svg(palette: Palettes.starter, shapes: [shape], ink: PKDrawing(strokes: [stroke]), text: nil)
         try assertSnapshot(actual, named: "shape-and-stroke")
     }
 
@@ -27,8 +27,9 @@ final class SVGExporterTests: XCTestCase {
 
     func testLayerOrderIsShapesInkText() throws {
         let svg = try SVGExporter.svg(
+            palette: Palettes.starter,
             shapes: [LogoShape(id: UUID(), kind: .star, center: CGPoint(x: 512, y: 512),
-                               size: 200, rotation: 0, fill: Fixtures.butter)],
+                               size: 200, rotation: 0, fill: .third)],
             ink: PKDrawing(strokes: [Fixtures.monolineStroke([CGPoint(x: 100, y: 100), CGPoint(x: 900, y: 900)])]),
             text: Fixtures.pizzaText())
         let shapes = try XCTUnwrap(svg.range(of: #"<g id="shapes">"#)).lowerBound
@@ -40,7 +41,7 @@ final class SVGExporterTests: XCTestCase {
     }
 
     func testTextIsExportedAsOutlinesNeverAsTextElement() throws {
-        let svg = try SVGExporter.svg(shapes: [], ink: PKDrawing(), text: Fixtures.pizzaText())
+        let svg = try SVGExporter.svg(palette: Palettes.starter, shapes: [], ink: PKDrawing(), text: Fixtures.pizzaText())
         XCTAssertFalse(svg.contains("<text"))
         XCTAssertFalse(svg.contains("LilitaOne"))
         XCTAssertTrue(svg.contains(##"<path fill="#1C1B22" d="M"##))
@@ -49,11 +50,11 @@ final class SVGExporterTests: XCTestCase {
     func testMissingFontThrowsInsteadOfDroppingText() {
         var text = Fixtures.pizzaText()
         text.fontName = "Helvetica-Nope"
-        XCTAssertThrowsError(try SVGExporter.svg(shapes: [], ink: PKDrawing(), text: text))
+        XCTAssertThrowsError(try SVGExporter.svg(palette: Palettes.starter, shapes: [], ink: PKDrawing(), text: text))
     }
 
     func testEmptyInputHasNoLayerGroups() throws {
-        let svg = try SVGExporter.svg(shapes: [], ink: PKDrawing(), text: nil)
+        let svg = SVGExporter.svg(ink: PKDrawing())
         XCTAssertFalse(svg.contains("<g"))
     }
 

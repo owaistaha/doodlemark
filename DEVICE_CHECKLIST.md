@@ -64,3 +64,25 @@ blank canvas at 100%.
     thickness, nothing missing or shifted. (Smoothed and mirrored lines get
     the same check through the real export in step 7; the unit-test gate
     already covers them.)
+
+## Step 5a: palette
+
+12. [ ] **Tap and hold a swatch.** With a finger, press and hold the first
+    palette color for about half a second.
+    *Expected:* the system color picker opens in a popover next to the
+    swatch, titled "Color 1". A quick tap (no hold) only selects the color
+    (blue ring) and never opens the picker.
+13. [ ] **Live recolor while dragging.** Draw two Ink lines in color 1 and
+    one in color 2. Hold color 1, switch to Spectrum and drag your finger
+    across it.
+    *Expected:* the color-1 lines and swatch follow your finger smoothly
+    (no lag of more than a moment, no flicker); the color-2 line never
+    changes. Tap outside the popover: it closes and one Undo puts color 1
+    and its lines back.
+14. [ ] **Eyedropper.** Hold a swatch, tap the eyedropper in the picker and
+    pick a color from the canvas.
+    *Expected:* the slot takes that color, like any other pick.
+15. [ ] **Try another with a finger.** Tap Try another a few times.
+    *Expected:* the swatches, the Shapes layer tile and every Ink line
+    drawn in a palette color change together; each tap is one Undo.
+

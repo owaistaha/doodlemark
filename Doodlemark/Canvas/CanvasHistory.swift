@@ -1,11 +1,12 @@
 import PencilKit
 
-/// Everything undo can bring back: all four layers.
+/// Everything undo can bring back: all four layers and the palette.
 struct CanvasSnapshot: Equatable {
     var sketch: PKDrawing
     var ink: PKDrawing
     var shapes: [LogoShape]
     var text: LogoText?
+    var palette: [HexColor]
 }
 
 /// One undo history for the whole canvas (all four layers). Each user change

@@ -11,7 +11,7 @@ struct ShapesLayer: View {
             Color.clear
             ForEach(model.project.shapes) { shape in
                 Path(ShapeGeometry.path(for: shape))
-                    .fill(Color(cgColor: shape.fill.cgColor))
+                    .fill(Color(cgColor: model.project.color(for: shape.fill).cgColor))
             }
         }
         .frame(width: CanvasViewport.canvasSide, height: CanvasViewport.canvasSide)

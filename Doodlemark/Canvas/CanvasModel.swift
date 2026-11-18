@@ -48,8 +48,8 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
 /// four layers. Saving comes in step 6.
 @MainActor @Observable
 final class CanvasModel {
-    static let pencilOnlyKey = "pencilOnly"
-    static let smoothLinesKey = "smoothLines"
+    nonisolated static let pencilOnlyKey = "pencilOnly"
+    nonisolated static let smoothLinesKey = "smoothLines"
 
     var project: Project
     var sketch = PKDrawing()
@@ -60,8 +60,10 @@ final class CanvasModel {
     private(set) var eraserLayer: CanvasLayer = .ink
     /// "Line size": drawn thickness in canvas space. Converted only by `LineSize`.
     var lineSize: CGFloat = LineSize.defaultSize
-    /// Index into `project.palette` used by the Ink pen.
-    var penColorIndex = 1
+    /// The selected palette color: the Ink pen draws with it and new shapes
+    /// are filled with it. Starts on the second slot, the darkest in every
+    /// curated palette.
+    private(set) var currentSlot: PaletteSlot = .second
     var hiddenLayers: Set<CanvasLayer> = []
     /// "Pencil only": off by default, remembered across launches (TECH_SPEC → Input).
     var pencilOnly: Bool = UserDefaults.standard.bool(forKey: CanvasModel.pencilOnlyKey) {
@@ -85,12 +87,19 @@ final class CanvasModel {
     var zoomFactor: CGFloat = 1
     /// Bumped to ask the canvas to zoom back to fit.
     private(set) var fitRequest = 0
-    /// Bumped when undo/redo replaced the drawings, so the canvases reload them.
+    /// Bumped when the model replaced the drawings (undo/redo, a palette
+    /// change recoloring Ink lines), so the canvases reload them.
     private(set) var restoreRequest = 0
 
     private(set) var history = CanvasHistory()
     private var toolInUse = false
     private var recordedThisToolUse = false
+    /// Where "Try another" goes next when the palette isn't a curated one
+    /// (it was edited): after the last curated palette it showed.
+    private var lastCuratedIndex: Int?
+    /// A tap-and-hold color change in progress: one undo step, however many
+    /// colors the picker goes through.
+    private var colorEdit: (slot: PaletteSlot, before: CanvasSnapshot, inkSlots: [PaletteSlot?])?
 
     init(project: Project) {
         self.project = project
@@ -107,9 +116,7 @@ final class CanvasModel {
         }
     }
 
-    var penColor: HexColor {
-        project.palette.indices.contains(penColorIndex) ? project.palette[penColorIndex] : project.palette[0]
-    }
+    var penColor: HexColor { project.color(for: currentSlot) }
 
     func select(_ newTool: CanvasTool) {
         switch newTool {
@@ -137,10 +144,65 @@ final class CanvasModel {
 
     func zoomToFit() { fitRequest += 1 }
 
+    // MARK: Palette
+
+    /// Tap on a swatch: that color becomes the current one.
+    func chooseSlot(_ slot: PaletteSlot) {
+        currentSlot = slot
+    }
+
+    /// "Try another": the next curated palette. Everything that uses a slot
+    /// takes that slot's new color, Ink lines included. One undo step.
+    func tryAnotherPalette() {
+        let index = Palettes.indexAfter(Palettes.curatedIndex(of: project.palette) ?? lastCuratedIndex)
+        lastCuratedIndex = index
+        let new = Palettes.curated[index].colors
+        guard new != project.palette else { return }
+        let before = snapshot
+        ink = InkPalette.recolored(ink, slots: InkPalette.slots(of: ink, palette: project.palette), palette: new)
+        project.palette = new
+        record(before)
+        restoreRequest += 1
+    }
+
+    /// The slot whose color is being changed (tap and hold), if any.
+    var editingSlot: PaletteSlot? { colorEdit?.slot }
+
+    /// Tap and hold on a swatch opened the color picker for `slot`.
+    func beginColorEdit(_ slot: PaletteSlot) {
+        endColorEdit()
+        colorEdit = (slot, snapshot, InkPalette.slots(of: ink, palette: project.palette, preferring: slot))
+    }
+
+    /// The picker shows a new color. Shapes and text follow through their
+    /// slot; the slot's Ink lines are recolored from the drawing as it was
+    /// when the edit began, so passing through another slot's color on the
+    /// way never merges two slots' lines.
+    func previewColor(_ color: HexColor) {
+        guard let edit = colorEdit else { return }
+        var palette = edit.before.palette
+        let others = PaletteSlot.allCases.filter { $0 != edit.slot }.map { $0.color(in: palette) }
+        palette[edit.slot.rawValue] = InkPalette.keepingApart(color, from: others)
+        guard palette != project.palette else { return }
+        let slots = edit.inkSlots.map { $0 == edit.slot ? $0 : nil }
+        ink = InkPalette.recolored(edit.before.ink, slots: slots, palette: palette)
+        project.palette = palette
+        restoreRequest += 1
+    }
+
+    /// The picker closed. The whole change is one undo step (none if the
+    /// color ended up the same).
+    func endColorEdit() {
+        guard let edit = colorEdit else { return }
+        colorEdit = nil
+        if project.palette != edit.before.palette { record(edit.before) }
+    }
+
     // MARK: Changes and undo
 
     var snapshot: CanvasSnapshot {
-        CanvasSnapshot(sketch: sketch, ink: ink, shapes: project.shapes, text: project.text)
+        CanvasSnapshot(sketch: sketch, ink: ink, shapes: project.shapes, text: project.text,
+                       palette: project.palette)
     }
 
     var canUndo: Bool { history.canUndo }
@@ -203,6 +265,19 @@ final class CanvasModel {
         ink = state.ink
         project.shapes = state.shapes
         project.text = state.text
+        project.palette = state.palette
         restoreRequest += 1
     }
 }
+
+#if DEBUG
+extension CanvasModel {
+    /// "palette #FF5A1F #1C1B22 #FFC93C; ink #1C1B22": the palette and the
+    /// distinct Ink line colors, for UI tests (`debugColors`).
+    var debugColorSummary: String {
+        let palette = project.palette.map(\.hexString).joined(separator: " ")
+        let inkColors = Set(ink.strokes.map { SVGExporter.inkColor($0.ink.color).color.hexString }).sorted()
+        return "palette \(palette); ink \(inkColors.joined(separator: " "))"
+    }
+}
+#endif

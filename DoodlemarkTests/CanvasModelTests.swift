@@ -8,8 +8,8 @@ final class CanvasModelTests: XCTestCase {
     /// These tests run inside the app, so the model's remembered toggles land
     /// in the app's own defaults. Put them back afterwards, or the next app
     /// launch on this simulator starts with Smooth my lines off.
-    private static let rememberedKeys = [CanvasModel.smoothLinesKey, CanvasModel.pencilOnlyKey]
-    private var savedDefaults: [String: Any] = [:]
+    nonisolated private static let rememberedKeys = [CanvasModel.smoothLinesKey, CanvasModel.pencilOnlyKey]
+    nonisolated(unsafe) private var savedDefaults: [String: Any] = [:]
 
     override func setUp() {
         super.setUp()

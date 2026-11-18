@@ -9,7 +9,7 @@ struct TextLayer: View {
         ZStack(alignment: .topLeading) {
             Color.clear
             if let text = model.project.text, let outline = try? GlyphPaths.path(for: text) {
-                Path(outline).fill(Color(cgColor: text.fill.cgColor))
+                Path(outline).fill(Color(cgColor: model.project.color(for: text.fill).cgColor))
             }
         }
         .frame(width: CanvasViewport.canvasSide, height: CanvasViewport.canvasSide)

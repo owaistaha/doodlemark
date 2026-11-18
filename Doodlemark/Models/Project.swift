@@ -16,6 +16,26 @@ struct Project: Codable, Identifiable, Equatable, Sendable {
     var text: LogoText?
     var symmetryOn: Bool
     var gridOn: Bool
+
+    /// The color a palette slot shows right now.
+    func color(for slot: PaletteSlot) -> HexColor { slot.color(in: palette) }
+}
+
+/// Which of the project's three palette colors a shape or the text uses.
+/// Stored as 0/1/2, never as a hex, so changing a palette color recolors
+/// everything that uses that slot.
+enum PaletteSlot: Int, Codable, CaseIterable, Identifiable, Sendable {
+    case first = 0, second = 1, third = 2
+    var id: Self { self }
+
+    /// 1-based, for labels ("Color 2").
+    var number: Int { rawValue + 1 }
+
+    /// The slot's color in `palette`. A palette is always 3 colors; a broken
+    /// one falls back to the starter palette rather than crashing.
+    func color(in palette: [HexColor]) -> HexColor {
+        palette.indices.contains(rawValue) ? palette[rawValue] : Palettes.starter[rawValue]
+    }
 }
 
 /// A filled vector shape on the Shapes layer. Its outline comes only from
@@ -30,7 +50,7 @@ struct LogoShape: Codable, Identifiable, Equatable, Sendable {
     var center: CGPoint         // canvas space (0...1024)
     var size: CGFloat           // side of the square the shape fits in when unrotated
     var rotation: Double        // radians, clockwise on screen
-    var fill: HexColor
+    var fill: PaletteSlot
 }
 
 /// The logo name. Exported as glyph outlines, never as `<text>`.
@@ -40,7 +60,7 @@ struct LogoText: Codable, Equatable, Sendable {
     var center: CGPoint         // center of the line's typographic box, canvas space
     var pointSize: CGFloat
     var rotation: Double        // radians, clockwise on screen
-    var fill: HexColor
+    var fill: PaletteSlot
 }
 
 /// An opaque sRGB color, stored and encoded as `"#RRGGBB"`.

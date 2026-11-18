@@ -24,8 +24,8 @@ final class DrawingPersistenceTests: XCTestCase {
 
         XCTAssertEqual(back.path.map(\.location), stroke.path.map(\.location))
         XCTAssertEqual(back.path.map(\.size.width), stroke.path.map(\.size.width))
-        XCTAssertEqual(try SVGExporter.svg(shapes: [], ink: reloaded, text: nil),
-                       try SVGExporter.svg(shapes: [], ink: original, text: nil))
+        XCTAssertEqual(SVGExporter.svg(ink: reloaded),
+                       SVGExporter.svg(ink: original))
         XCTAssertEqual(try render(reloaded), try render(original), "PencilKit should draw the reloaded strokes identically")
     }
 
