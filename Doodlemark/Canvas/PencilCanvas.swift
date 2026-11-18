@@ -25,8 +25,7 @@ extension CanvasModel {
                           inkToolWidth: LineSize.toolWidth(forSize: lineSize), inkColor: penColor,
                           hiddenLayers: hiddenLayers, pencilOnly: pencilOnly, gridOn: gridOn,
                           mirrorOn: mirrorOn, fitRequest: fitRequest, restoreRequest: restoreRequest,
-                          selection: tool == .shapes && !hiddenLayers.contains(.shapes)
-                              ? selectedShape.map(ShapeEditing.bounds(of:)) : nil,
+                          selection: hiddenLayers.contains(activeLayer) ? nil : pickedItem?.bounds,
                           snapGuides: snapGuides)
     }
 }
@@ -102,8 +101,8 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
 
     /// What a one-finger drag with the Shapes tool does, decided where it starts.
     private enum ShapeDrag {
-        case move(LogoShape)
-        case resize(LogoShape, handle: CGPoint)
+        case move(PickedItem)
+        case resize(PickedItem, handle: CGPoint)
     }
     private var shapeDragMode: ShapeDrag?
     /// Where the drag's finger came down. Measured from here, not with the
@@ -118,7 +117,7 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
     /// Two fingers on the picked shape, accumulated from the recognizers'
     /// increments so a finger lifting or landing never makes it jump.
     private struct ShapeSession {
-        var start: LogoShape
+        var start: PickedItem
         var lastCentroid: CGPoint
         var translation = CGPoint.zero
         var scale: CGFloat = 1
@@ -324,9 +323,9 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
     }
 
     override func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
-        if g === shapeTap { return shapesEditable }
-        if g === shapeDrag { return shapesEditable && prepareShapeDrag() }
-        if g === rotation { return shapesEditable && model.selectedShape != nil }
+        if g === shapeTap { return itemsEditable && config?.tool == .shapes }
+        if g === shapeDrag { return itemsEditable && prepareShapeDrag() }
+        if g === rotation { return itemsEditable && model.pickedItem != nil }
         return super.gestureRecognizerShouldBegin(g)
     }
 
@@ -375,15 +374,15 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
                 session.rotation += Double(rotation.rotation)
                 rotation.rotation = 0
             }
-            let result = ShapeEditing.transformed(session.start, translation: session.translation,
-                                                  scale: session.scale, rotation: session.rotation,
-                                                  snapDistance: Self.snapDistance / shown.zoom)
-            model.updateShape(result.shape, guides: result.guides)
+            let result = session.start.transformed(translation: session.translation, scale: session.scale,
+                                                   rotation: session.rotation,
+                                                   snapDistance: Self.snapDistance / shown.zoom)
+            model.updateItem(result.item, guides: result.guides)
             twoFinger = .shape(session)
         }
 
         if !(panActive || pinchActive || rotationActive) {
-            if case .shape = mode { model.endShapeEdit() }
+            if case .shape = mode { model.endEdit() }
             twoFinger = nil
             anchor = nil
         }
@@ -392,12 +391,12 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
     /// Two fingers came down: on the picked shape they edit it, anywhere else
     /// they pan and zoom. Either way a one-finger shape drag stops here.
     private func startTwoFinger() -> TwoFinger {
-        if shapesEditable, let shape = model.selectedShape {
+        if itemsEditable, let item = model.pickedItem {
             let reach = Self.twoFingerReach / shown.zoom
-            if ShapeEditing.bounds(of: shape).insetBy(dx: -reach, dy: -reach).contains(shown.toCanvas(centroid)) {
-                model.beginShapeEdit()          // before the drag ends: one undo step for both
+            if item.bounds.insetBy(dx: -reach, dy: -reach).contains(shown.toCanvas(centroid)) {
+                model.beginEdit()               // before the drag ends: one undo step for both
                 cancelShapeDrag()
-                return .shape(ShapeSession(start: shape, lastCentroid: centroid))
+                return .shape(ShapeSession(start: item, lastCentroid: centroid))
             }
         }
         cancelShapeDrag()
@@ -444,11 +443,12 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
         }
     }
 
-    // MARK: Shapes (one finger)
+    // MARK: Shapes and text (one finger)
 
-    private var shapesEditable: Bool {
-        guard let config else { return false }
-        return config.tool == .shapes && !config.hiddenLayers.contains(.shapes)
+    /// The Shapes or Text tool is on and its layer is shown.
+    private var itemsEditable: Bool {
+        guard let config, config.tool == .shapes || config.tool == .text else { return false }
+        return !config.hiddenLayers.contains(config.activeLayer)
     }
 
     /// Tap: pick the shape under the finger, or nothing. A tap on a handle
@@ -462,25 +462,33 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
 
     /// The picked shape's corner handle within reach of `point` (view space).
     private func handle(near point: CGPoint) -> CGPoint? {
-        guard let shape = model.selectedShape else { return nil }
-        return ShapeEditing.handles(of: shape).first { handle in
-            let v = shown.toView(handle)
-            return hypot(v.x - point.x, v.y - point.y) <= Self.handleHitRadius
-        }
+        guard let item = model.pickedItem else { return nil }
+        let drawn = ShapeSelectionView.handlePoints(around: item.bounds, viewport: shown, visible: bounds)
+        return zip(item.handles, drawn).first { _, v in
+            hypot(v.x - point.x, v.y - point.y) <= Self.handleHitRadius
+        }?.0
     }
 
     /// Where a drag starts decides what it does: a corner handle of the picked
-    /// shape resizes it, a shape moves it (and picks it), empty canvas does nothing.
+    /// item resizes it, a shape moves it (and picks it), the text moves it,
+    /// empty canvas does nothing.
     private func prepareShapeDrag() -> Bool {
         let start = shapeDragStart
-        if let shape = model.selectedShape, let handle = handle(near: start) {
-            shapeDragMode = .resize(shape, handle: handle)
+        if let item = model.pickedItem, let handle = handle(near: start) {
+            shapeDragMode = .resize(item, handle: handle)
+            return true
+        }
+        if config?.tool == .text {
+            let slop = Self.shapeSlop / shown.zoom
+            guard let item = model.pickedItem,
+                  item.bounds.insetBy(dx: -slop, dy: -slop).contains(shown.toCanvas(start)) else { return false }
+            shapeDragMode = .move(item)
             return true
         }
         guard let id = ShapeEditing.hitTest(shown.toCanvas(start), in: model.project.shapes,
                                             slop: Self.shapeSlop / shown.zoom),
               let shape = model.project.shapes.first(where: { $0.id == id }) else { return false }
-        shapeDragMode = .move(shape)
+        shapeDragMode = .move(.shape(shape))
         return true
     }
 
@@ -489,23 +497,23 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
         switch g.state {
         case .began, .changed:
             if g.state == .began {
-                model.beginShapeEdit()
-                if case .move(let shape) = mode { model.selectShape(shape.id) }
+                model.beginEdit()
+                if case .move(.shape(let shape)) = mode { model.selectShape(shape.id) }
             }
             let location = g.location(in: self)
             let delta = CGPoint(x: (location.x - shapeDragStart.x) / shown.zoom,
                                 y: (location.y - shapeDragStart.y) / shown.zoom)
             switch mode {
             case .move(let start):
-                let result = ShapeEditing.moved(start, by: delta, snapDistance: Self.snapDistance / shown.zoom)
-                model.updateShape(result.shape, guides: result.guides)
+                let result = start.moved(by: delta, snapDistance: Self.snapDistance / shown.zoom)
+                model.updateItem(result.item, guides: result.guides)
             case .resize(let start, let handle):
                 let finger = CGPoint(x: handle.x + delta.x, y: handle.y + delta.y)
-                model.updateShape(ShapeEditing.scaled(start, handle: handle, finger: finger))
+                model.updateItem(start.scaled(handle: handle, finger: finger))
             }
         default:
             shapeDragMode = nil
-            model.endShapeEdit()
+            model.endEdit()
         }
     }
 
@@ -614,12 +622,41 @@ final class MirrorGuideView: UIView {
     }
 }
 
-/// The picked shape's path bounds with four corner handles, and the canvas
-/// centre lines while a moved shape is snapped to them. Drawn in view space
+/// The picked item's outline bounds with four corner handles, and the canvas
+/// centre lines while a moved item is snapped to them. Drawn in view space
 /// so handles stay the same size at any zoom. On screen only.
+///
+/// The box and handles sit `handleOutset` points outside the outline bounds,
+/// so a handle never covers the first or last letter of the text (or a
+/// star's tip). They still follow the real bounds exactly.
 final class ShapeSelectionView: UIView {
     static let handleDiameter: CGFloat = 26
     static let lineWidth: CGFloat = 2
+    /// Handle centre to bounds corner, along each side: the handle circle
+    /// (radius 13) then clears the bounds by 2 pt.
+    static let handleOutset: CGFloat = 15
+
+    /// The box drawn around `bounds` (canvas space), in view space.
+    static func box(around bounds: CGRect, viewport: CanvasViewport) -> CGRect {
+        let a = viewport.toView(bounds.origin)
+        let b = viewport.toView(CGPoint(x: bounds.maxX, y: bounds.maxY))
+        return CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y)
+            .insetBy(dx: -handleOutset, dy: -handleOutset)
+    }
+
+    /// Where the handles are drawn (and touched), in the order of
+    /// `ShapeEditing.handles`: top left, top right, bottom right, bottom left.
+    /// Kept whole inside `visible` (the canvas view, which clips), so an item
+    /// at the canvas edge or zoomed past it still has four handles to grab.
+    static func handlePoints(around bounds: CGRect, viewport: CanvasViewport, visible: CGRect) -> [CGPoint] {
+        let box = box(around: bounds, viewport: viewport)
+        let keep = visible.insetBy(dx: handleDiameter / 2, dy: handleDiameter / 2)
+        return [CGPoint(x: box.minX, y: box.minY), CGPoint(x: box.maxX, y: box.minY),
+                CGPoint(x: box.maxX, y: box.maxY), CGPoint(x: box.minX, y: box.maxY)].map { p in
+            guard keep.width > 0, keep.height > 0 else { return p }
+            return CGPoint(x: min(max(p.x, keep.minX), keep.maxX), y: min(max(p.y, keep.minY), keep.maxY))
+        }
+    }
 
     var viewport = CanvasViewport(zoom: 1, offset: .zero) { didSet { setNeedsDisplay() } }
     var selection: CGRect? { didSet { if selection != oldValue { setNeedsDisplay() } } }
@@ -651,14 +688,10 @@ final class ShapeSelectionView: UIView {
         cg.strokePath()
 
         guard let selection else { return }
-        let a = viewport.toView(selection.origin)
-        let b = viewport.toView(CGPoint(x: selection.maxX, y: selection.maxY))
-        let box = CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y)
         cg.setStrokeColor(UIColor(Theme.pencilBlue).cgColor)
-        cg.stroke(box)
+        cg.stroke(Self.box(around: selection, viewport: viewport))
         let d = Self.handleDiameter
-        for corner in [CGPoint(x: box.minX, y: box.minY), CGPoint(x: box.maxX, y: box.minY),
-                       CGPoint(x: box.maxX, y: box.maxY), CGPoint(x: box.minX, y: box.maxY)] {
+        for corner in Self.handlePoints(around: selection, viewport: viewport, visible: bounds) {
             let dot = CGRect(x: corner.x - d / 2, y: corner.y - d / 2, width: d, height: d)
                 .insetBy(dx: Self.lineWidth / 2, dy: Self.lineWidth / 2)
             cg.setFillColor(UIColor(Theme.surface).cgColor)

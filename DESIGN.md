@@ -59,10 +59,26 @@ thicker border or a weight change.
   full-width Secondary buttons) first when a shape is picked, then "Add a
   shape": a 2 × 2 grid of 76 pt tiles showing each shape in the current color
   with its name.
-- Picked shape on the canvas: a 2 pt `pencilBlue` box on its outline's bounds
-  with four 26 pt white handles ringed in `pencilBlue` (64 pt touch target).
+- Picked shape or text on the canvas: a 2 pt `pencilBlue` box 15 pt outside
+  its outline's bounds with four 26 pt white handles ringed in `pencilBlue` on
+  the box corners (64 pt touch target), so no handle covers the drawing. At
+  the canvas edge the handles are pulled in to stay whole and grabbable.
   Snap guides: 2 pt `tangerine` lines through the canvas centre, only while a
-  moved shape is snapped. All drawn at the same size at any zoom.
+  moved item is snapped. All drawn at the same size at any zoom.
+- Text tool panel: "Logo name" (a text field, 44 pt, 12 pt radius, 1 pt
+  `lineStrong` border, 2 pt `pencilBlue` while typing; placeholder "Your logo
+  name"), under it a one-line note in `small` `ink` when a character is left
+  out ("This font can't draw “😀”.", never an alert) and an "n/24" counter in
+  `inkMuted`. Then "Font": one row per logo font, its **name written in that
+  font** (26 pt) with the style word under it ("Bubbly", "Blocky", "Rounded",
+  "Script", "Clean"); chosen = `blueTint`, 2 pt `pencilBlue` border and a
+  check. Then "Size" and "Letter spacing" sliders with their values, the
+  "ALL CAPS" checkbox row and a full-width "Delete text" Secondary button,
+  all disabled until there's text.
+- With the on-screen keyboard up, the canvas square shrinks to fit above it
+  (12 pt margins, zoom and hint pills hidden), the tool rail stays put behind
+  the keys, and the panel scrolls "Logo name" to its top so the field and its
+  note are always visible.
 
 ## Voice
 Friendly words over jargon: "Smooth my lines", not "stroke stabilization";

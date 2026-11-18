@@ -233,13 +233,15 @@ struct LogoShape: Codable, Identifiable {
   var fill: PaletteSlot       // 0/1/2, never a hex (see "Palette")
 }
 
-struct LogoText: Codable {
-  var string: String
-  var fontName: String        // must be one of the bundled OFL fonts
-  var center: CGPoint
-  var pointSize: CGFloat
+struct LogoText: Codable {   // at most one per project (PRD)
+  var string: String          // as typed: ≤ 24 characters, all drawable in the font
+  var fontName: String        // PostScript name of a bundled logo font (LogoFonts)
+  var center: CGPoint         // centre of the line's typographic box
+  var pointSize: CGFloat      // 24…400
   var rotation: Double
   var fill: PaletteSlot       // 0/1/2
+  var tracking: CGFloat       // letter spacing in 1/1000 em, −50…400
+  var allCaps: Bool           // draw `string.uppercased()`; the typed string is kept
 }
 ```
 **Shape bounds (step 5):** selection handles, hit-testing and snapping use the
@@ -316,7 +318,11 @@ gestures live in `CanvasStackView` and only feed it numbers.
 - **Move:** one finger on any shape drags it (and picks it). Its centre stays
   on the canvas.
 - **Resize:** one finger on a corner handle of the picked shape (handles on
-  the path bounds, 26 pt drawn, 64 pt touch target). Size follows the
+  the path bounds, 26 pt drawn, 64 pt touch target). The box and handles are
+  drawn 15 view points outside the bounds, so a handle never covers a star's
+  tip or the first/last letter, and are pulled in to stay whole inside the
+  canvas view at its edges (it clips). Drawing and hit testing share one
+  function (`ShapeSelectionView.handlePoints`). Size follows the
   finger's distance from the centre, so the corner stays under the finger;
   size is kept in 40…1400.
 - **Two fingers:** if their midpoint is on the picked shape (bounds + 40 pt),
@@ -336,6 +342,49 @@ gestures live in `CanvasStackView` and only feed it numbers.
 - Drags are measured from the touch-down point, not from the pan
   recognizer's `translation`, which leaves out the ~10 pt it takes the pan to
   start (the shape lagged the finger by that much).
+
+## Text (step 5c)
+One logo text per project (PRD). Same code as shapes: `LogoShape` and
+`LogoText` both conform to `CanvasItem` (centre, rotation, a `scale` = size or
+point size, an outline), and `ShapeEditing`'s move / resize / turn / snap are
+generic over it. The gestures carry a `PickedItem` (shape or text), so text
+moves with one finger, resizes from a corner handle, and turns and pinches
+with two fingers exactly like a shape, one undo step per gesture. No flip for
+text (a mirrored word isn't a logo).
+- **Typing:** a system `TextField` in the right panel (keyboard, dictation and
+  Scribble come with it). The first letter creates the text at (512, 512),
+  120 pt, in the current slot, in the chosen font. The whole typing session
+  is **one undo step**: the snapshot is taken at the first change and
+  recorded when the field loses focus, or when anything else starts (a
+  gesture, a control, undo/redo, another tool). Erasing every letter removes
+  the text. While a session is open, Undo is enabled and takes it back whole.
+- **Blocked characters:** every character is checked against the chosen font
+  with `CTFontGetGlyphsForCharacters` (per grapheme, all glyphs ≠ 0; newlines
+  refused). Characters it can't draw (emoji, CJK, ★, a missing accent) are
+  left out and the field shows a note under it: "This font can't draw “😀”."
+  No alert. The field then shows exactly what's on the canvas. Over 24
+  characters: "Up to 24 letters and spaces." Switching to a font that can't
+  draw the current text, or ALL CAPS without a capital for a letter, is
+  refused with a note ("Lilita One can't draw “ő”. Change the text first.").
+- **Never a fallback font (RISKS #7):** `GlyphPaths` also checks that every
+  Core Text run uses the requested font and throws `.missingGlyphs`
+  otherwise, so the exporter fails rather than writing system-font outlines.
+- **Tracking** is in 1/1000 em (logo-tool convention), applied as
+  `kCTKernAttributeName` = tracking/1000 × point size on every character but
+  the last, so the line stays centred on `center`. **ALL CAPS** draws
+  `string.uppercased()` and keeps what was typed.
+- **Bounds:** hit testing, handles and snapping use the real glyph outline
+  bounds (`GlyphPaths.path(for:).boundingBoxOfPath`), as wide as the letters.
+  With the Text tool, a drag that starts on those bounds (+ 8 pt) moves it.
+- **Keyboard:** the on-screen keyboard covers the bottom ~45% of the screen.
+  The canvas area goes compact below 560 pt height (12 pt margins, zoom and
+  hint pills hidden) so the whole logo stays visible above the keys. The tool
+  rail stays full height behind them (an overlay, so it never makes the row
+  taller). When the field is focused, or a note appears, the panel scrolls
+  the "Logo name" block to its top so the note is never behind the keys.
+- **Export:** text is glyph outlines, one `<path>` in `<g id="text">`; never
+  `<text>`, a font name or the string itself. The gate renders "Pizza Rocket"
+  in every bundled font at −0.3 rad with tracking (odd fonts in ALL CAPS).
 
 ## Undo history
 One history for all four layers (`Canvas/CanvasHistory.swift`): every user
@@ -397,9 +446,24 @@ None. Only Apple frameworks: SwiftUI, PencilKit, CoreText, WebKit (export test
 only), UniformTypeIdentifiers.
 
 ## Fonts
-- **Logo fonts:** bundle 4–6 **SIL Open Font License** fonts (one bubbly, one
-  bold geometric, one rounded, one script, one blocky). Lilita One is the
-  first one, because the export gate uses it. Prefer static, single-weight files.
+- **Logo fonts (step 5c):** five static, single-weight **SIL Open Font
+  License 1.1** files from google/fonts, listed in `Models/LogoFonts.swift`
+  (the only fonts the picker offers) and `UIAppFonts`:
+
+  | Style | Font (file → PostScript name) | Why |
+  |---|---|---|
+  | Bubbly | Lilita One (`LilitaOne-Regular.ttf` → `LilitaOne`) | Chunky and friendly; the export gate's font |
+  | Blocky | Bungee (`Bungee-Regular.ttf` → `Bungee-Regular`) | Square signage letters, caps-only look |
+  | Rounded | Sniglet ExtraBold (`Sniglet-ExtraBold.ttf`) | Soft round ends, very kid-friendly |
+  | Script | Pacifico (`Pacifico-Regular.ttf` → `Pacifico-Regular`) | The classic connected logo script |
+  | Clean | Poppins ExtraBold (`Poppins-ExtraBold.ttf`) | Bold geometric sans for a clean, modern mark |
+
+  Each has `<Family>-OFL.txt` next to it. Checked when bundled: no `fvar`
+  table (static), license is OFL 1.1, Latin + common accents, no CJK. Only
+  Lilita One declares a Reserved Font Name ("Lilita"); it's bundled
+  unmodified, so that's fine. `TextToolTests` checks each loads by name,
+  isn't variable, is in `UIAppFonts` with its license, and draws
+  "Pizza Rocket". The picker writes each font's name in that font.
 - **UI fonts:** static instances of Inter (400/600/700) and Bricolage
   Grotesque (800). Never the variable files, because weights from variable
   fonts registered via `UIAppFonts` are unreliable.

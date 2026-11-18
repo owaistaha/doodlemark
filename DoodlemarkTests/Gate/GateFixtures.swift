@@ -74,7 +74,18 @@ enum GateFixtures {
         ("text-rotated", GateScene(text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 512), rotation: -0.35))),
         ("logo", logo),
         ("smoothed-mirrored", smoothedMirrored),
-    ]
+    ] + fontScenes
+
+    /// "Pizza Rocket" in every bundled logo font, turned and letter-spaced;
+    /// every other font in ALL CAPS.
+    static var fontScenes: [(name: String, scene: GateScene)] {
+        LogoFonts.all.enumerated().map { index, font in
+            ("text-\(font.postScriptName)",
+             GateScene(text: LogoText(string: "Pizza Rocket", fontName: font.postScriptName,
+                                      center: CGPoint(x: 512, y: 512), pointSize: 90, rotation: -0.3,
+                                      fill: .second, tracking: 60, allCaps: index.isMultiple(of: 2) == false)))
+        }
+    }
 
     /// "Smooth my lines" + Mirror: the smoothed wobbly spiral and its mirror
     /// copy (a flip in `transform`, determinant −1). Both must export exactly.

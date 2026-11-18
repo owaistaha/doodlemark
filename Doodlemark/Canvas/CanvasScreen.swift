@@ -15,7 +15,15 @@ struct CanvasScreen: View {
             CanvasTopBar(model: model, onBack: onBack)
             Rectangle().fill(Theme.line).frame(height: Theme.Metrics.hairline)
             HStack(spacing: 0) {
-                ToolRail(model: model)
+                // The rail stays full height behind the on-screen keyboard. It's
+                // an overlay so its height never makes this row taller than the
+                // space above the keyboard (that pushed the top bar off screen).
+                Color.clear
+                    .frame(width: Theme.Metrics.toolRailWidth)
+                    .overlay(alignment: .top) {
+                        ToolRail(model: model)
+                            .ignoresSafeArea(.keyboard)
+                    }
                 Rectangle().fill(Theme.line).frame(width: Theme.Metrics.hairline)
                 CanvasArea(model: model)
                 Rectangle().fill(Theme.line).frame(width: Theme.Metrics.hairline)
@@ -219,10 +227,17 @@ private struct CanvasArea: View {
     /// Space above/below the square, from design/Canvas.png.
     private let verticalInset: CGFloat = 80
     private let horizontalInset: CGFloat = 40
+    /// Below this height (the on-screen keyboard is up while typing the logo
+    /// name) the square keeps small margins and the pills step aside, so the
+    /// whole logo stays visible above the keyboard.
+    private static let compactHeight: CGFloat = 560
+    private static let compactInset: CGFloat = 12
 
     var body: some View {
         GeometryReader { geo in
-            let side = max(0, min(geo.size.width - 2 * horizontalInset, geo.size.height - 2 * verticalInset))
+            let compact = geo.size.height < Self.compactHeight
+            let v = compact ? Self.compactInset : verticalInset, h = compact ? Self.compactInset : horizontalInset
+            let side = max(0, min(geo.size.width - 2 * h, geo.size.height - 2 * v))
             ZStack {
                 Theme.canvasBackdrop
                 PencilCanvas(model: model, config: model.stackConfig)
@@ -235,12 +250,16 @@ private struct CanvasArea: View {
                                     y: Theme.CanvasShadow.y))
             }
             .overlay(alignment: .topTrailing) {
-                ZoomPill(factor: model.zoomFactor) { model.zoomToFit() }
-                    .padding(Theme.Metrics.barPadding)
+                if !compact {
+                    ZoomPill(factor: model.zoomFactor) { model.zoomToFit() }
+                        .padding(Theme.Metrics.barPadding)
+                }
             }
             .overlay(alignment: .bottom) {
-                HintPill(text: hint)
-                    .padding(.bottom, (verticalInset - Theme.Metrics.minTarget) / 2)
+                if !compact {
+                    HintPill(text: hint)
+                        .padding(.bottom, (verticalInset - Theme.Metrics.minTarget) / 2)
+                }
             }
             #if DEBUG
             .overlay(alignment: .topLeading) {
@@ -254,6 +273,10 @@ private struct CanvasArea: View {
                         .accessibilityElement()
                         .accessibilityLabel(model.debugShapeSummary)
                         .accessibilityIdentifier("debugShapes")
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel(model.debugTextSummary)
+                        .accessibilityIdentifier("debugText")
                 }
             }
             #endif
@@ -270,7 +293,9 @@ private struct CanvasArea: View {
             if model.project.shapes.isEmpty { "Shapes: pick one on the right to add it" }
             else if model.selectedShape == nil { "Tap a shape to pick it" }
             else { "Drag to move. Pull a corner to resize. Two fingers turn it." }
-        case .text: "Text is coming soon"
+        case .text:
+            if model.pickedItem == nil { "Text: type your logo name on the right" }
+            else { "Drag to move. Pull a corner to resize. Two fingers turn it." }
         }
     }
 }
@@ -318,21 +343,24 @@ private struct CanvasRightPanel: View {
     @Bindable var model: CanvasModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Layers").sectionLabelStyle()
-                    ForEach(CanvasLayer.allCases) { layer in
-                        LayerRow(model: model, layer: layer)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Layers").sectionLabelStyle()
+                        ForEach(CanvasLayer.allCases) { layer in
+                            LayerRow(model: model, layer: layer)
+                        }
                     }
+                    PaletteSection(model: model)
+                    ToolOptions(model: model)
+                    #if DEBUG
+                    DebugLinks()
+                    #endif
                 }
-                PaletteSection(model: model)
-                ToolOptions(model: model)
-                #if DEBUG
-                DebugLinks()
-                #endif
+                .padding(Theme.Metrics.barPadding)
             }
-            .padding(Theme.Metrics.barPadding)
+            .environment(\.panelScroll, proxy)
         }
         .frame(width: Theme.Metrics.rightPanelWidth)
         .background(Theme.surface)
@@ -539,9 +567,7 @@ private struct ToolOptions: View {
             case .shapes:
                 ShapeOptions(model: model)
             case .text:
-                Text("Text").sectionLabelStyle()
-                Text("Adding your logo name is coming soon.")
-                    .font(Theme.body).foregroundStyle(Theme.inkMuted)
+                TextOptions(model: model)
             }
         }
     }
@@ -610,6 +636,180 @@ private struct AddShapeButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Add a \(kind.title.lowercased())")
         .accessibilityIdentifier("add-\(kind.rawValue)")
+    }
+}
+
+/// Text tool: the logo name (a system text field, so the keyboard, dictation
+/// and Scribble all work), its font, size, letter spacing and ALL CAPS.
+extension EnvironmentValues {
+    /// Scrolls the right panel (the Text tool brings the logo name above the keyboard).
+    @Entry var panelScroll: ScrollViewProxy?
+}
+
+private struct TextOptions: View {
+    let model: CanvasModel
+    @Environment(\.panelScroll) private var panelScroll
+    /// The "Logo name" label, field, note and counter: kept in view together.
+    private static let nameBlock = "logoNameBlock"
+    /// What the field shows. Kept in step with the model: anything the model
+    /// refuses (a character the font can't draw, letter 25) is taken back out.
+    @State private var draft = ""
+    @FocusState private var typing: Bool
+
+    private var text: LogoText? { model.project.text }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Logo name").sectionLabelStyle()
+            nameField
+        }
+        .id(Self.nameBlock)
+        .onChange(of: typing) { _, focused in
+            if focused { showNameBlock() } else { model.endTyping() }
+        }
+        .onChange(of: model.textMessage) { _, message in
+            if message != nil, typing { showNameBlock() }
+        }
+        .onDisappear { model.endTyping() }
+
+        Text("Font").sectionLabelStyle()
+            .padding(.top, 8)
+        fontsAndControls
+    }
+
+    /// With the keyboard up, the field would sit on the keys' top edge and the
+    /// note under it ("This font can't draw …") behind them. Scrolled to the
+    /// top of the panel, the whole block is above the keyboard.
+    private func showNameBlock() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))    // after the keyboard's own scroll
+            withAnimation(.easeOut(duration: 0.25)) { panelScroll?.scrollTo(Self.nameBlock, anchor: .top) }
+        }
+    }
+
+    private var nameField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Your logo name", text: $draft)
+                .font(Theme.body)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($typing)
+                .padding(.horizontal, 14)
+                .frame(minHeight: Theme.Metrics.barButton)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small)
+                    .strokeBorder(typing ? Theme.pencilBlue : Theme.lineStrong,
+                                  lineWidth: typing ? Theme.Metrics.selectedBorder : Theme.Metrics.hairline))
+                .accessibilityIdentifier("textField")
+            HStack(alignment: .top) {
+                if let message = model.textMessage {
+                    Text(message)
+                        .font(Theme.small).foregroundStyle(Theme.ink)
+                        .accessibilityIdentifier("textMessage")
+                }
+                Spacer(minLength: 8)
+                Text("\(draft.count)/\(LogoText.maxLength)")
+                    .font(Theme.small).foregroundStyle(Theme.inkMuted).monospacedDigit()
+            }
+        }
+        .onAppear { draft = model.textString }
+        .onChange(of: draft) { _, new in
+            let accepted = model.typeText(new)
+            if accepted != new { draft = accepted }
+        }
+        .onChange(of: model.textString) { _, new in
+            if new != draft { draft = new }       // undo, redo, delete
+        }
+        .onSubmit { typing = false }
+    }
+
+    @ViewBuilder private var fontsAndControls: some View {
+        VStack(spacing: 8) {
+            ForEach(LogoFonts.all) { font in
+                FontRow(font: font, selected: model.textFont == font.postScriptName) { model.setTextFont(font) }
+            }
+        }
+
+        Group {
+            SliderRow(title: "Size", value: text?.pointSize ?? Self.sizeDefault, range: LogoText.scaleRange,
+                      model: model, set: model.setTextSize)
+                .accessibilityIdentifier("textSize")
+            SliderRow(title: "Letter spacing", value: text?.tracking ?? 0, range: LogoText.trackingRange,
+                      model: model, set: model.setTextTracking)
+                .accessibilityIdentifier("textTracking")
+            CheckRow(title: "ALL CAPS", subtitle: nil, isOn: Binding(get: { text?.allCaps ?? false },
+                                                                       set: { model.setTextAllCaps($0) }))
+                .accessibilityIdentifier("allCaps")
+            SecondaryButton(title: "Delete text", symbol: "trash") { model.deleteText() }
+                .accessibilityIdentifier("deleteText")
+        }
+        .disabled(text == nil)
+        .padding(.top, 8)
+    }
+
+    private static let sizeDefault = CanvasModel.newTextSize
+}
+
+/// One logo font, its name written in that font, the style underneath.
+/// Chosen = blue tint, 2 pt blue border and a check (not color alone).
+private struct FontRow: View {
+    let font: LogoFont
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(font.displayName)
+                        .font(.custom(font.postScriptName, fixedSize: 26))
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Text(font.style).font(Theme.small).foregroundStyle(selected ? Theme.blueText : Theme.inkMuted)
+                }
+                Spacer(minLength: 0)
+                if selected {
+                    Image(systemName: "checkmark").font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Theme.pencilBlue)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: Theme.Metrics.toolButton - 12)
+            .background(selected ? Theme.blueTint : Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.button))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.button)
+                .strokeBorder(selected ? Theme.pencilBlue : Theme.line,
+                              lineWidth: selected ? Theme.Metrics.selectedBorder : Theme.Metrics.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.button))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(font.displayName), \(font.style)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("font-\(font.postScriptName)")
+    }
+}
+
+/// A labelled slider whose whole drag is one undo step.
+private struct SliderRow: View {
+    let title: String
+    let value: CGFloat
+    let range: ClosedRange<CGFloat>
+    let model: CanvasModel
+    let set: (CGFloat) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(Theme.bodyStrong)
+                Spacer()
+                Text("\(Int(value.rounded()))").font(Theme.labelStrong).foregroundStyle(Theme.inkMuted).monospacedDigit()
+            }
+            Slider(value: Binding(get: { value }, set: { set($0) }), in: range) { editing in
+                if editing { model.beginEdit() } else { model.endEdit() }
+            }
+            .tint(Theme.pencilBlue)
+            .accessibilityLabel(title)
+            .accessibilityValue("\(Int(value.rounded()))")
+        }
     }
 }
 

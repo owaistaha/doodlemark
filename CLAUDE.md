@@ -121,6 +121,7 @@ Doodlemark/
     Project.swift               (Project, LogoShape, LogoText, HexColor)
     Palettes.swift              (12 curated 3-color sets; fills are palette slots)
     Prompts.swift               (starter prompt cards)
+    LogoFonts.swift             (the 5 bundled logo fonts; the only ones the picker offers)
   Canvas/
     CanvasScreen.swift
     CanvasModel.swift           (editor state: tool, layers, pen, zoom, change → undo)
@@ -163,10 +164,12 @@ Doodlemark/
     MockupPreview.swift
   Resources/
     Lessons/                    (rocket, cat-badge, bolt-shield, moon-cafe, star-club .json)
-    Fonts/                      (UI: static Bricolage Grotesque 800 + Inter 400/600/700; logo fonts; all with OFL.txt)
+    Fonts/                      (UI: static Bricolage Grotesque 800 + Inter 400/600/700; logo: Lilita One,
+                                 Bungee, Sniglet ExtraBold, Pacifico, Poppins ExtraBold; each with <Family>-OFL.txt)
     Assets.xcassets
 DoodlemarkTests/
   SVGExportTests.swift          (the hard gate; images → GateOutput/, gitignored)
+  TextToolTests.swift           (fonts, blocked characters, tracking/caps, typing undo, text in SVG)
   MonolineWidthTests.swift      (documents PencilKit's monoline width law)
   Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
   Snapshots/                    (byte-exact expected SVGs)

@@ -107,10 +107,20 @@ enum NativeRenderer {
 
     private static func drawText(_ text: LogoText, color: HexColor, in cg: CGContext) throws {
         let font = try GlyphPaths.font(named: text.fontName, size: text.pointSize)
-        let attributed = NSAttributedString(string: text.string, attributes: [
+        // Caps and tracking applied here on their own (not through GlyphPaths),
+        // so a mistake in either shows up as a diff.
+        let string = text.allCaps ? text.string.uppercased() : text.string
+        let attributed = NSMutableAttributedString(string: string, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cgColor,
         ])
+        let utf16 = string as NSString
+        if text.tracking != 0, utf16.length > 0 {
+            let lastCharacter = utf16.rangeOfComposedCharacterSequence(at: utf16.length - 1)
+            attributed.addAttribute(NSAttributedString.Key(kCTKernAttributeName as String),
+                                    value: text.tracking * text.pointSize / 1000,
+                                    range: NSRange(location: 0, length: lastCharacter.location))
+        }
         let line = CTLineCreateWithAttributedString(attributed)
         let box = GlyphPaths.typographicBox(of: line)
 

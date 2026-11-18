@@ -47,6 +47,13 @@ final class SVGExportTests: XCTestCase {
     func testGateLogo() async throws { try await assertGatePasses("logo") }
     func testGateSmoothedMirrored() async throws { try await assertGatePasses("smoothed-mirrored") }
 
+    /// Text in each bundled logo font, rotated, with letter spacing (and ALL
+    /// CAPS for every other one).
+    func testGateTextInEveryBundledFont() async throws {
+        XCTAssertEqual(GateFixtures.fontScenes.count, LogoFonts.all.count)
+        for (name, _) in GateFixtures.fontScenes { try await assertGatePasses(name) }
+    }
+
     // MARK: Negative controls (must fail; if one passes, the gate is broken)
 
     func testNegativeControlShiftedStrokeFails() async throws {

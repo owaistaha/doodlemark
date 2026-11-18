@@ -9,32 +9,66 @@ struct SnapGuides: Equatable, Sendable {
     var horizontal = false
 }
 
-/// The maths behind moving, resizing, turning and flipping shapes. Pure
-/// functions in canvas space (1024 × 1024), so the gestures stay thin and
-/// everything here is unit-tested.
+/// Something on the canvas you can pick, move, resize and turn: a shape or
+/// the logo text. The same code (and the same gestures) edits both.
+protocol CanvasItem: Equatable {
+    var center: CGPoint { get set }
+    /// Radians, clockwise on screen.
+    var rotation: Double { get set }
+    /// What resizing changes: a shape's `size`, the text's `pointSize`.
+    var scale: CGFloat { get set }
+    static var scaleRange: ClosedRange<CGFloat> { get }
+    /// The real outline in canvas space (what's drawn and exported).
+    var outline: CGPath { get }
+}
+
+extension LogoShape: CanvasItem {
+    var scale: CGFloat {
+        get { size }
+        set { size = newValue }
+    }
+    /// Big enough to grab with a finger at "fits" zoom; large enough to fill
+    /// the canvas as a background.
+    static let scaleRange: ClosedRange<CGFloat> = 40...1400
+    var outline: CGPath { ShapeGeometry.path(for: self) }
+}
+
+extension LogoText: CanvasItem {
+    var scale: CGFloat {
+        get { pointSize }
+        set { pointSize = newValue }
+    }
+    /// Readable on a sticker at the small end, one word across the canvas at the big end.
+    static let scaleRange: ClosedRange<CGFloat> = 24...400
+    /// Empty if the font can't draw it (the text tool never lets that happen).
+    var outline: CGPath { (try? GlyphPaths.path(for: self)) ?? CGMutablePath() }
+}
+
+/// The maths behind moving, resizing, turning and flipping shapes and the
+/// logo text. Pure functions in canvas space (1024 × 1024), so the gestures
+/// stay thin and everything here is unit-tested.
 ///
-/// Selection handles, hit testing and snapping use the shape's **real path
-/// bounds** (`ShapeGeometry.path(for:).boundingBoxOfPath`), never the
-/// `size × size` box: a regular star is narrower than its box (TECH_SPEC).
+/// Selection handles, hit testing and snapping use the item's **real outline
+/// bounds** (`outline.boundingBoxOfPath`), never the `size × size` box: a
+/// regular star is narrower than its box, and text is as wide as its letters (TECH_SPEC).
 enum ShapeEditing {
     static let canvasCenter = CGPoint(x: CanvasViewport.canvasSide / 2, y: CanvasViewport.canvasSide / 2)
     /// A new shape: centred, about a third of the canvas.
     static let newShapeSize: CGFloat = 320
-    /// Smallest and largest `size`. Big enough to grab with a finger at
-    /// "fits" zoom; large enough to fill the canvas as a background.
-    static let sizeRange: ClosedRange<CGFloat> = 40...1400
+    /// Smallest and largest shape `size`.
+    static var sizeRange: ClosedRange<CGFloat> { LogoShape.scaleRange }
     /// Rotation moves in 15° steps.
     static let rotationStep = Double.pi / 12
 
     // MARK: Bounds and hit testing
 
-    static func bounds(of shape: LogoShape) -> CGRect {
-        ShapeGeometry.path(for: shape).boundingBoxOfPath
+    static func bounds<Item: CanvasItem>(of item: Item) -> CGRect {
+        item.outline.boundingBoxOfPath
     }
 
-    /// The four corner handles: the corners of the path bounds.
-    static func handles(of shape: LogoShape) -> [CGPoint] {
-        let b = bounds(of: shape)
+    /// The four corner handles: the corners of the outline bounds.
+    static func handles<Item: CanvasItem>(of item: Item) -> [CGPoint] {
+        let b = bounds(of: item)
         return [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY),
                 CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]
     }
@@ -55,8 +89,8 @@ enum ShapeEditing {
     /// `start` moved by `translation`. The centre of its path bounds snaps
     /// to x = 512 and/or y = 512 when within `snapDistance`, and the centre
     /// stays on the canvas so a shape can't be lost off the edge.
-    static func moved(_ start: LogoShape, by translation: CGPoint,
-                      snapDistance: CGFloat) -> (shape: LogoShape, guides: SnapGuides) {
+    static func moved<Item: CanvasItem>(_ start: Item, by translation: CGPoint,
+                                        snapDistance: CGFloat) -> (shape: Item, guides: SnapGuides) {
         var shape = start
         let side = CanvasViewport.canvasSide
         shape.center = CGPoint(x: min(max(start.center.x + translation.x, 0), side),
@@ -65,7 +99,7 @@ enum ShapeEditing {
     }
 
     /// Snaps the centre of `shape`'s path bounds to the canvas centre lines.
-    static func snapped(_ shape: LogoShape, snapDistance: CGFloat) -> (shape: LogoShape, guides: SnapGuides) {
+    static func snapped<Item: CanvasItem>(_ shape: Item, snapDistance: CGFloat) -> (shape: Item, guides: SnapGuides) {
         var result = shape
         var guides = SnapGuides()
         let b = bounds(of: shape)
@@ -85,22 +119,22 @@ enum ShapeEditing {
     /// Dragging a corner handle from `handle` to `finger`: the shape grows or
     /// shrinks around its centre with the finger's distance from the centre,
     /// so the corner stays under the finger (one finger is enough).
-    static func scaled(_ start: LogoShape, handle: CGPoint, finger: CGPoint) -> LogoShape {
+    static func scaled<Item: CanvasItem>(_ start: Item, handle: CGPoint, finger: CGPoint) -> Item {
         let from = hypot(handle.x - start.center.x, handle.y - start.center.y)
         guard from > 0 else { return start }
         return resized(start, by: hypot(finger.x - start.center.x, finger.y - start.center.y) / from)
     }
 
-    static func resized(_ start: LogoShape, by factor: CGFloat) -> LogoShape {
-        var shape = start
-        shape.size = min(max(start.size * factor, sizeRange.lowerBound), sizeRange.upperBound)
-        return shape
+    static func resized<Item: CanvasItem>(_ start: Item, by factor: CGFloat) -> Item {
+        var item = start
+        item.scale = min(max(start.scale * factor, Item.scaleRange.lowerBound), Item.scaleRange.upperBound)
+        return item
     }
 
     // MARK: Rotate
 
     /// `start` turned by `angle` (radians, clockwise), in 15° steps.
-    static func rotated(_ start: LogoShape, by angle: Double) -> LogoShape {
+    static func rotated<Item: CanvasItem>(_ start: Item, by angle: Double) -> Item {
         var shape = start
         shape.rotation = snappedRotation(start.rotation + angle)
         return shape
@@ -124,8 +158,8 @@ enum ShapeEditing {
     /// Two fingers on the selected shape: it follows the fingers' midpoint
     /// (`translation`), grows with the pinch (`scale`) and turns with them
     /// (`rotation`, in 15° steps), then snaps like a move.
-    static func transformed(_ start: LogoShape, translation: CGPoint, scale: CGFloat, rotation: Double,
-                            snapDistance: CGFloat) -> (shape: LogoShape, guides: SnapGuides) {
+    static func transformed<Item: CanvasItem>(_ start: Item, translation: CGPoint, scale: CGFloat, rotation: Double,
+                                              snapDistance: CGFloat) -> (shape: Item, guides: SnapGuides) {
         let turned = rotated(resized(start, by: scale), by: rotation)
         return moved(turned, by: translation, snapDistance: snapDistance)
     }
@@ -170,3 +204,57 @@ extension LogoShape.Kind {
         }
     }
 }
+
+/// The item the Shapes or Text tool has picked, as a value the gestures can
+/// edit without caring which kind it is.
+enum PickedItem: Equatable {
+    case shape(LogoShape)
+    case text(LogoText)
+
+    var bounds: CGRect {
+        switch self {
+        case .shape(let shape): ShapeEditing.bounds(of: shape)
+        case .text(let text): ShapeEditing.bounds(of: text)
+        }
+    }
+
+    var handles: [CGPoint] {
+        switch self {
+        case .shape(let shape): ShapeEditing.handles(of: shape)
+        case .text(let text): ShapeEditing.handles(of: text)
+        }
+    }
+
+    func moved(by translation: CGPoint, snapDistance: CGFloat) -> (item: PickedItem, guides: SnapGuides) {
+        switch self {
+        case .shape(let shape):
+            let r = ShapeEditing.moved(shape, by: translation, snapDistance: snapDistance)
+            return (.shape(r.shape), r.guides)
+        case .text(let text):
+            let r = ShapeEditing.moved(text, by: translation, snapDistance: snapDistance)
+            return (.text(r.shape), r.guides)
+        }
+    }
+
+    func scaled(handle: CGPoint, finger: CGPoint) -> PickedItem {
+        switch self {
+        case .shape(let shape): .shape(ShapeEditing.scaled(shape, handle: handle, finger: finger))
+        case .text(let text): .text(ShapeEditing.scaled(text, handle: handle, finger: finger))
+        }
+    }
+
+    func transformed(translation: CGPoint, scale: CGFloat, rotation: Double,
+                     snapDistance: CGFloat) -> (item: PickedItem, guides: SnapGuides) {
+        switch self {
+        case .shape(let shape):
+            let r = ShapeEditing.transformed(shape, translation: translation, scale: scale,
+                                             rotation: rotation, snapDistance: snapDistance)
+            return (.shape(r.shape), r.guides)
+        case .text(let text):
+            let r = ShapeEditing.transformed(text, translation: translation, scale: scale,
+                                             rotation: rotation, snapDistance: snapDistance)
+            return (.text(r.shape), r.guides)
+        }
+    }
+}
+

@@ -317,7 +317,118 @@ final class CanvasScreenUITests: XCTestCase {
         keepScreenshot(app, "shapes-panel")
     }
 
+    /// Step 5c with the real keyboard: type a name (one undo step for the
+    /// whole session), a character the font can't draw (friendly note, not
+    /// typed), the font picker, a finger drag on the text, letter spacing and
+    /// ALL CAPS. Screenshot with the keyboard covering the bottom of the screen.
+    @MainActor
+    func testTypeALogoNamePickAFontAndMoveIt() throws {
+        let (app, stack) = launchLandscape()
+        let probe = app.descendants(matching: .any)["debugText"]
+        app.buttons["tool-text"].tap()
+        XCTAssertEqual(probe.label, "no text")
+        let field = app.textFields["textField"]
+        field.tap()
+        field.typeText("Pizza Rocket")
+        try waitForLabel(probe, "text Pizza Rocket; LilitaOne 120 0° fill 2 tracking 0 caps off; at 512 512")
+        keepScreenshot(app, "text-keyboard-up")
+
+        field.typeText("★")
+        let message = app.staticTexts["textMessage"]
+        XCTAssertTrue(message.waitForExistence(timeout: 3))
+        XCTAssertEqual(message.label, "This font can't draw \u{201C}★\u{201D}.")
+        XCTAssertTrue(probe.label.hasPrefix("text Pizza Rocket;"), "not typed")
+        XCTAssertEqual(field.value as? String, "Pizza Rocket", "and not left in the field")
+        sleep(1)                                         // the panel scrolls the name block up
+        let keys = app.keyboards.firstMatch
+        XCTAssertTrue(keys.exists, "the on-screen keyboard is up")
+        XCTAssertLessThan(message.frame.maxY, keys.frame.minY, "the note is above the keyboard, not behind it")
+        XCTAssertLessThan(field.frame.maxY, keys.frame.minY)
+        keepScreenshot(app, "text-blocked-note")
+
+        toolbarButton(app, "undo").tap()
+        try waitForLabel(probe, "no text")              // twelve letters, one step
+        XCTAssertEqual(field.value as? String, "Your logo name", "the field follows (placeholder)")
+        toolbarButton(app, "redo").tap()
+        try waitForLabel(probe, "text Pizza Rocket; LilitaOne 120 0° fill 2 tracking 0 caps off; at 512 512")
+        hideKeyboard(app)
+
+        app.buttons["font-Pacifico-Regular"].tap()
+        XCTAssertTrue(probe.label.contains("Pacifico-Regular 120"))
+        XCTAssertTrue(app.buttons["font-Pacifico-Regular"].isSelected)
+
+        // One finger on the text moves it; one undo puts it back.
+        drag(stack, (0.5, 0.5), (0.6, 0.62))
+        let at = try textCenter(probe)
+        XCTAssertEqual(at.x, 512 + 0.1 * 1024, accuracy: 12)
+        XCTAssertEqual(at.y, 512 + 0.12 * 1024, accuracy: 12)
+        toolbarButton(app, "undo").tap()
+        XCTAssertEqual(try textCenter(probe), CGPoint(x: 512, y: 512))
+
+        app.scrollViews.firstMatch.swipeUp(velocity: .slow)
+        app.sliders["Letter spacing"].adjust(toNormalizedSliderPosition: 0.4)
+        sleep(1)
+        XCTAssertFalse(probe.label.contains("tracking 0 "), probe.label)
+        app.descendants(matching: .any)["allCaps"].firstMatch.tap()
+        sleep(1)
+        XCTAssertTrue(probe.label.contains("caps on"), probe.label)
+        XCTAssertTrue(probe.label.hasPrefix("text Pizza Rocket;"), "what was typed is kept")
+    }
+
+    /// The report's text shot: a tangerine circle behind "Pizza Rocket" in
+    /// Sniglet, letter-spaced, picked, with the font picker in the panel.
+    @MainActor
+    func testTextScreenshot() throws {
+        let (app, stack) = launchLandscape()
+        let probe = app.descendants(matching: .any)["debugText"]
+        app.buttons["tool-shapes"].tap()
+        app.descendants(matching: .any)["swatch-1"].tap()
+        app.buttons["add-circle"].tap()
+        drag(stack, (0.65625, 0.65625), (0.78, 0.78))
+        app.buttons["tool-text"].tap()
+        app.descendants(matching: .any)["swatch-2"].tap()
+        app.buttons["font-Sniglet-ExtraBold"].tap()
+        let field = app.textFields["textField"]
+        field.tap()
+        field.typeText("Pizza Rocket")
+        try waitForLabel(probe, "text Pizza Rocket; Sniglet-ExtraBold 120 0° fill 2 tracking 0 caps off; at 512 512")
+        hideKeyboard(app)
+        keepScreenshot(app, "text-picked")
+        app.scrollViews.firstMatch.swipeUp(velocity: .slow)
+        app.sliders["Letter spacing"].adjust(toNormalizedSliderPosition: 0.25)
+        keepScreenshot(app, "text-panel")
+    }
+
     // MARK: Helpers
+
+    /// The text's centre from `debugText` ("…; at 512 512").
+    @MainActor
+    private func textCenter(_ probe: XCUIElement) throws -> CGPoint {
+        sleep(1)
+        let f = try XCTUnwrap(probe.label.components(separatedBy: "; at ").last?.components(separatedBy: " "))
+        return CGPoint(x: Double(f[0]) ?? -1, y: Double(f[1]) ?? -1)
+    }
+
+    /// The canvas toolbar's button, not the keyboard shortcut bar's Undo/Redo
+    /// (both match while the keyboard is up).
+    @MainActor
+    private func toolbarButton(_ app: XCUIApplication, _ id: String) -> XCUIElement {
+        let keyboard = app.keyboards.firstMatch
+        let all = app.buttons.matching(identifier: id).allElementsBoundByIndex
+        guard keyboard.exists else { return all.first ?? app.buttons[id] }
+        let shortcutsTop = keyboard.frame.minY - 80          // the bar floats just above the keys
+        return all.first { $0.frame.maxY < shortcutsTop } ?? app.buttons[id]
+    }
+
+    /// The iPad keyboard's own hide key (what a person taps).
+    @MainActor
+    private func hideKeyboard(_ app: XCUIApplication) {
+        guard app.keyboards.firstMatch.exists else { return }
+        let hide = app.keyboards.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'keyboard'")).firstMatch
+        if hide.exists { hide.tap() } else { app.keyboards.buttons["Done"].firstMatch.tap() }
+        _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
+    }
+
 
     private struct ShapeState {
         var count: Int
@@ -367,6 +478,12 @@ final class CanvasScreenUITests: XCTestCase {
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
+        // Let the turn to landscape finish: a tap during it can land on the
+        // portrait position of a button (seen once on a first launch).
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "frame.size.width > frame.size.height"),
+                                                  object: app.windows.firstMatch)
+        _ = XCTWaiter().wait(for: [landscape], timeout: 5)
+        sleep(1)
         return (app, stack)
     }
 

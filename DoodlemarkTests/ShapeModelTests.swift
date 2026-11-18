@@ -15,9 +15,9 @@ final class ShapeModelTests: XCTestCase {
     /// A gesture the way the canvas drives it: begin, several live updates, end.
     private func gesture(_ model: CanvasModel, _ steps: [(LogoShape) -> LogoShape]) {
         let start = model.selectedShape!
-        model.beginShapeEdit()
+        model.beginEdit()
         for step in steps { model.updateShape(step(start)) }
-        model.endShapeEdit()
+        model.endEdit()
     }
 
     func testAddShapePutsItAtTheCentreInTheCurrentColorAndPicksIt() {
@@ -72,12 +72,12 @@ final class ShapeModelTests: XCTestCase {
         let model = shapesModel()
         model.addShape(.circle)
         let start = model.selectedShape!
-        model.beginShapeEdit()                                         // one-finger drag
+        model.beginEdit()                                         // one-finger drag
         model.updateShape(ShapeEditing.moved(start, by: CGPoint(x: 50, y: 0), snapDistance: 0).shape)
-        model.beginShapeEdit()                                         // second finger lands on it
-        model.endShapeEdit()                                           // the drag is cancelled
+        model.beginEdit()                                         // second finger lands on it
+        model.endEdit()                                           // the drag is cancelled
         model.updateShape(ShapeEditing.resized(model.selectedShape!, by: 2))
-        model.endShapeEdit()                                           // fingers lifted
+        model.endEdit()                                           // fingers lifted
         XCTAssertEqual(model.history.undoStack.count, 2)
         model.undo()
         XCTAssertEqual(model.selectedShape, start)
@@ -86,20 +86,20 @@ final class ShapeModelTests: XCTestCase {
     func testAGestureThatChangesNothingIsNoStep() {
         let model = shapesModel()
         model.addShape(.circle)
-        model.beginShapeEdit()
+        model.beginEdit()
         model.updateShape(model.selectedShape!)
-        model.endShapeEdit()
+        model.endEdit()
         XCTAssertEqual(model.history.undoStack.count, 1)
     }
 
     func testSnapGuidesShowOnlyDuringTheGesture() {
         let model = shapesModel()
         model.addShape(.circle)
-        model.beginShapeEdit()
+        model.beginEdit()
         let result = ShapeEditing.moved(model.selectedShape!, by: CGPoint(x: 4, y: 300), snapDistance: 10)
         model.updateShape(result.shape, guides: result.guides)
         XCTAssertEqual(model.snapGuides, SnapGuides(vertical: true, horizontal: false))
-        model.endShapeEdit()
+        model.endEdit()
         XCTAssertEqual(model.snapGuides, SnapGuides())
     }
 

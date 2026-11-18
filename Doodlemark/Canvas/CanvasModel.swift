@@ -105,9 +105,17 @@ final class CanvasModel {
     private(set) var selectedShapeID: LogoShape.ID?
     /// Canvas-centre guides to show while a moved shape is snapped.
     private(set) var snapGuides = SnapGuides()
-    /// A move/resize/turn gesture in progress. Nested gestures (one finger
-    /// becoming two) share it, so each gesture is exactly one undo step.
-    private var shapeEdit: (before: CanvasSnapshot, depth: Int)?
+    /// A move/resize/turn gesture (or a text slider drag) in progress. Nested
+    /// gestures (one finger becoming two) share it, so each is one undo step.
+    private var itemEdit: (before: CanvasSnapshot, depth: Int)?
+
+    /// A friendly note under the text field ("This font can't draw “😀”."), or nil.
+    private(set) var textMessage: String?
+    /// The font new text starts in (the picker works before anything's typed).
+    private(set) var newTextFont = LogoFonts.defaultFont.postScriptName
+    /// A typing session in progress: everything typed until the field loses
+    /// focus, or another change starts, is one undo step.
+    private var typing: CanvasSnapshot?
 
     init(project: Project) {
         self.project = project
@@ -132,8 +140,10 @@ final class CanvasModel {
         case .ink: eraserLayer = .ink
         default: break
         }
+        endTyping()
         tool = newTool
         if newTool != .shapes { selectedShapeID = nil }
+        textMessage = nil
     }
 
     /// Tapping a layer row picks that layer's tool. The eraser stays the eraser
@@ -155,10 +165,15 @@ final class CanvasModel {
 
     // MARK: Palette
 
-    /// Tap on a swatch: that color becomes the current one, and the selected
-    /// shape (if any) is filled with it, as one undo step.
+    /// Tap on a swatch: that color becomes the current one, and the picked
+    /// shape, or the text with the Text tool, is filled with it (one undo step).
     func chooseSlot(_ slot: PaletteSlot) {
         currentSlot = slot
+        endTyping()
+        if tool == .text {
+            changeText { $0.fill = slot }
+            return
+        }
         guard let index = selectedShapeIndex, project.shapes[index].fill != slot else { return }
         let before = snapshot
         project.shapes[index].fill = slot
@@ -235,12 +250,38 @@ final class CanvasModel {
         selectedShapeID = id.flatMap { id in project.shapes.contains { $0.id == id } ? id : nil }
     }
 
-    /// A move, resize or turn gesture started.
-    func beginShapeEdit() {
-        if let edit = shapeEdit {
-            shapeEdit = (edit.before, edit.depth + 1)
+    /// The shape or text the gestures work on: the picked shape with the
+    /// Shapes tool, the logo text (once it has letters) with the Text tool.
+    var pickedItem: PickedItem? {
+        switch tool {
+        case .shapes:
+            return selectedShape.map(PickedItem.shape)
+        case .text:
+            guard let text = project.text, !text.string.isEmpty else { return nil }
+            return .text(text)
+        default:
+            return nil
+        }
+    }
+
+    /// A move, resize or turn gesture (or a text slider drag) started.
+    func beginEdit() {
+        endTyping()
+        if let edit = itemEdit {
+            itemEdit = (edit.before, edit.depth + 1)
         } else {
-            shapeEdit = (snapshot, 1)
+            itemEdit = (snapshot, 1)
+        }
+    }
+
+    /// The gesture's current result (live, not an undo step yet).
+    func updateItem(_ item: PickedItem, guides: SnapGuides = SnapGuides()) {
+        switch item {
+        case .shape(let shape):
+            updateShape(shape, guides: guides)
+        case .text(let text):
+            if project.text != text { project.text = text }
+            if snapGuides != guides { snapGuides = guides }
         }
     }
 
@@ -251,16 +292,16 @@ final class CanvasModel {
         if snapGuides != guides { snapGuides = guides }
     }
 
-    /// The gesture ended: one undo step if the shapes changed.
-    func endShapeEdit() {
-        guard let edit = shapeEdit else { return }
+    /// The gesture ended: one undo step if anything changed.
+    func endEdit() {
+        guard let edit = itemEdit else { return }
         if edit.depth > 1 {
-            shapeEdit = (edit.before, edit.depth - 1)
+            itemEdit = (edit.before, edit.depth - 1)
             return
         }
-        shapeEdit = nil
+        itemEdit = nil
         snapGuides = SnapGuides()
-        if project.shapes != edit.before.shapes { record(edit.before) }
+        if project.shapes != edit.before.shapes || project.text != edit.before.text { record(edit.before) }
     }
 
     /// Whether Flip would visibly change the selected shape (a circle never does).
@@ -284,6 +325,135 @@ final class CanvasModel {
         record(before)
     }
 
+    // MARK: Text (one logo name per project)
+
+    /// What the text field shows: the typed string ("" when there's no text).
+    var textString: String { project.text?.string ?? "" }
+    /// The font the picker shows as chosen.
+    var textFont: String { project.text?.fontName ?? newTextFont }
+
+    /// The text field changed. Keeps what the rules allow (characters the font
+    /// can draw, at most 24 of them) and returns it, so the field shows exactly
+    /// what's on the canvas. The first letter creates the text, centred, in
+    /// the current color.
+    @discardableResult
+    func typeText(_ typed: String) -> String {
+        // The field writing back what was accepted: nothing new, and the note
+        // about what was refused stays up.
+        guard typed != textString else { return typed }
+        let fontName = textFont
+        let allCaps = project.text?.allCaps ?? false
+        var blocked: [Character] = []
+        var accepted = String(typed.precomposedStringWithCanonicalMapping.filter { character in
+            let shown = allCaps ? String(character).uppercased() : String(character)
+            guard LogoFonts.missingCharacters(in: shown, fontName: fontName).isEmpty else {
+                if !blocked.contains(character) { blocked.append(character) }
+                return false
+            }
+            return true
+        })
+        var message: String?
+        if !blocked.isEmpty { message = "This font can't draw \(Self.quoted(blocked))." }
+        if accepted.count > LogoText.maxLength {
+            accepted = String(accepted.prefix(LogoText.maxLength))
+            message = message ?? "Up to \(LogoText.maxLength) letters and spaces."
+        }
+        textMessage = message
+        guard accepted != textString else { return accepted }
+
+        if typing == nil { typing = snapshot }
+        if project.text == nil {
+            project.text = LogoText(string: accepted, fontName: fontName, center: ShapeEditing.canvasCenter,
+                                    pointSize: Self.newTextSize, rotation: 0, fill: currentSlot)
+            hiddenLayers.remove(.text)
+        } else {
+            project.text?.string = accepted
+        }
+        return accepted
+    }
+
+    /// New text: big enough to read, small enough for a long name to fit.
+    static let newTextSize: CGFloat = 120
+
+    /// The text field lost focus (or something else started): everything typed
+    /// since it got focus is one undo step. Emptied text is removed.
+    func endTyping() {
+        guard let before = typing else { return }
+        typing = nil
+        if project.text?.string.isEmpty == true { project.text = nil }
+        if project.text != before.text { record(before) }
+    }
+
+    /// Picks a font. Refused, with a note, if it can't draw the text.
+    func setTextFont(_ font: LogoFont) {
+        endTyping()
+        if let text = project.text {
+            let missing = LogoFonts.missingCharacters(in: text.displayString, fontName: font.postScriptName)
+            guard missing.isEmpty else {
+                textMessage = "\(font.displayName) can't draw \(Self.quoted(missing)). Change the text first."
+                return
+            }
+        }
+        textMessage = nil
+        newTextFont = font.postScriptName
+        changeText { $0.fontName = font.postScriptName }
+    }
+
+    /// ALL CAPS. Refused, with a note, if the font has no capital for a letter.
+    func setTextAllCaps(_ on: Bool) {
+        endTyping()
+        guard let text = project.text else { return }
+        if on {
+            let missing = LogoFonts.missingCharacters(in: text.string.uppercased(), fontName: text.fontName)
+            guard missing.isEmpty else {
+                textMessage = "This font can't draw \(Self.quoted(missing)) in capitals."
+                return
+            }
+        }
+        textMessage = nil
+        changeText { $0.allCaps = on }
+    }
+
+    func setTextSize(_ size: CGFloat) {
+        changeText { $0.pointSize = min(max(size, LogoText.scaleRange.lowerBound), LogoText.scaleRange.upperBound) }
+    }
+
+    func setTextTracking(_ tracking: CGFloat) {
+        changeText { $0.tracking = min(max(tracking, LogoText.trackingRange.lowerBound), LogoText.trackingRange.upperBound) }
+    }
+
+    func deleteText() {
+        endTyping()
+        guard project.text != nil else { return }
+        let before = snapshot
+        project.text = nil
+        textMessage = nil
+        record(before)
+    }
+
+    /// One change to the text: live during a slider drag (`beginEdit`/`endEdit`),
+    /// otherwise its own undo step.
+    private func changeText(_ change: (inout LogoText) -> Void) {
+        endTyping()                                    // what was typed is its own step
+        guard var text = project.text else { return }
+        change(&text)
+        guard text != project.text else { return }
+        if itemEdit != nil {
+            project.text = text
+            return
+        }
+        let before = snapshot
+        project.text = text
+        record(before)
+    }
+
+    /// “a”, “b” and “c”
+    private static func quoted(_ characters: [Character]) -> String {
+        let items = characters.map { "\u{201C}\($0)\u{201D}" }
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + items.last!
+    }
+
     // MARK: Changes and undo
 
     var snapshot: CanvasSnapshot {
@@ -291,8 +461,11 @@ final class CanvasModel {
                        palette: project.palette)
     }
 
-    var canUndo: Bool { history.canUndo }
-    var canRedo: Bool { history.canRedo }
+    /// Typing that isn't recorded yet counts: Undo takes back the session.
+    var canUndo: Bool { history.canUndo || typedSomething }
+    /// Undo would record the typing first, which clears the redo steps.
+    var canRedo: Bool { history.canRedo && !typedSomething }
+    private var typedSomething: Bool { typing.map { $0.text != project.text } ?? false }
 
     /// A finger or Pencil went down with a tool. Everything until `endToolUse`
     /// (e.g. one eraser drag across several lines) is one undo step.
@@ -331,11 +504,13 @@ final class CanvasModel {
     }
 
     func undo() {
+        endTyping()
         guard let previous = history.undo(current: snapshot) else { return }
         restore(previous)
     }
 
     func redo() {
+        endTyping()
         guard let next = history.redo(current: snapshot) else { return }
         restore(next)
     }
@@ -353,6 +528,7 @@ final class CanvasModel {
         project.text = state.text
         project.palette = state.palette
         if selectedShapeIndex == nil { selectedShapeID = nil }
+        textMessage = nil
         restoreRequest += 1
     }
 }
@@ -380,6 +556,16 @@ extension CanvasModel {
             text += "; guides" + (snapGuides.vertical ? " x" : "") + (snapGuides.horizontal ? " y" : "")
         }
         return text
+    }
+
+    /// "text Pizza Rocket; LilitaOne 120 0° fill 2 tracking 0 caps off; at 512 512",
+    /// for UI tests (`debugText`).
+    var debugTextSummary: String {
+        guard let t = project.text else { return "no text" }
+        let degrees = Int((t.rotation * 180 / .pi).rounded())
+        return "text \(t.string); \(t.fontName) \(Int(t.pointSize.rounded())) \(degrees)° fill \(t.fill.number)"
+            + " tracking \(Int(t.tracking.rounded())) caps \(t.allCaps ? "on" : "off");"
+            + " at \(Int(t.center.x.rounded())) \(Int(t.center.y.rounded()))"
     }
 }
 #endif

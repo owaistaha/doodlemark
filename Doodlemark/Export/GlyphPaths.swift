@@ -14,6 +14,9 @@ enum GlyphPaths {
     enum Failure: Error, Equatable {
         /// The font isn't registered (not bundled or not listed in `UIAppFonts`).
         case fontUnavailable(String)
+        /// The font can't draw these characters. Core Text would quietly use a
+        /// system font for them, which must never reach a logo (license; RISKS #7).
+        case missingGlyphs(String)
     }
 
     /// Loads a bundled font by PostScript name. Core Text silently substitutes
@@ -29,12 +32,30 @@ enum GlyphPaths {
 
     static func path(for text: LogoText) throws(Failure) -> CGPath {
         let font = try font(named: text.fontName, size: text.pointSize)
-        return path(string: text.string, font: font, center: text.center, rotation: text.rotation)
+        return try path(string: text.displayString, font: font, tracking: text.tracking,
+                        center: text.center, rotation: text.rotation)
     }
 
-    static func path(string: String, font: CTFont, center: CGPoint, rotation: Double) -> CGPath {
-        let line = makeLine(string: string, font: font)
+    /// The characters of `string` that `font` has no glyph for (emoji, other
+    /// scripts, missing accents), each listed once, in order. Checked with
+    /// `CTFontGetGlyphsForCharacters`, the same lookup Core Text does before it
+    /// falls back to another font.
+    static func missingCharacters(in string: String, font: CTFont) -> [Character] {
+        var missing: [Character] = []
+        for character in string where !missing.contains(character) {
+            let units = Array(String(character).utf16)
+            var glyphs = [CGGlyph](repeating: 0, count: units.count)
+            let found = CTFontGetGlyphsForCharacters(font, units, &glyphs, units.count)
+            if !found || glyphs.contains(0) || character.isNewline { missing.append(character) }
+        }
+        return missing
+    }
+
+    static func path(string: String, font: CTFont, tracking: CGFloat = 0,
+                     center: CGPoint, rotation: Double) throws(Failure) -> CGPath {
+        let line = makeLine(string: string, font: font, tracking: tracking)
         let box = typographicBox(of: line)
+        let fontName = CTFontCopyPostScriptName(font) as String
 
         // Collect the outlines in line space: baseline at y = 0, y pointing up.
         let outlines = CGMutablePath()
@@ -42,9 +63,15 @@ enum GlyphPaths {
         for run in runs {
             let count = CTRunGetGlyphCount(run)
             guard count > 0 else { continue }
-            // A run can use a fallback font for characters the logo font lacks;
-            // use the run's own font so the outline matches what's on screen.
+            // Core Text puts characters the logo font lacks into a run with a
+            // fallback (system) font. Refuse: the text tool blocks those
+            // characters, so this only guards against a gap in that check.
             let runFont = Self.runFont(of: run) ?? font
+            guard CTFontCopyPostScriptName(runFont) as String == fontName else {
+                let range = CTRunGetStringRange(run)
+                let characters = (string as NSString).substring(with: NSRange(location: range.location, length: range.length))
+                throw .missingGlyphs(characters)
+            }
 
             var glyphs = [CGGlyph](repeating: 0, count: count)
             var positions = [CGPoint](repeating: .zero, count: count)
@@ -79,12 +106,33 @@ enum GlyphPaths {
         return (object as! CTFont)
     }
 
-    static func makeLine(string: String, font: CTFont) -> CTLine {
-        let attributed = NSAttributedString(
+    /// One line of text. `tracking` (1/1000 em) is extra space after every
+    /// character but the last, so it never adds a gap at the end that would
+    /// push the line off centre.
+    static func makeLine(string: String, font: CTFont, tracking: CGFloat = 0) -> CTLine {
+        let attributed = NSMutableAttributedString(
             string: string,
             attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
         )
+        let range = trackedRange(of: string)
+        if tracking != 0, range.length > 0 {
+            attributed.addAttribute(NSAttributedString.Key(kCTKernAttributeName as String),
+                                    value: kern(tracking: tracking, pointSize: CTFontGetSize(font)), range: range)
+        }
         return CTLineCreateWithAttributedString(attributed)
+    }
+
+    /// Tracking in 1/1000 em → Core Text kern in points.
+    static func kern(tracking: CGFloat, pointSize: CGFloat) -> CGFloat {
+        tracking / 1000 * pointSize
+    }
+
+    /// Every character but the last (UTF-16 range, whole characters).
+    static func trackedRange(of string: String) -> NSRange {
+        let ns = string as NSString
+        guard ns.length > 0 else { return NSRange(location: 0, length: 0) }
+        let last = ns.rangeOfComposedCharacterSequence(at: ns.length - 1)
+        return NSRange(location: 0, length: last.location)
     }
 
     /// Advance width × (ascent + descent), in line space (y up, baseline at 0).

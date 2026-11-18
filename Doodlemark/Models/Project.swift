@@ -53,14 +53,27 @@ struct LogoShape: Codable, Identifiable, Equatable, Sendable {
     var fill: PaletteSlot
 }
 
-/// The logo name. Exported as glyph outlines, never as `<text>`.
+/// The logo name (one per project). Exported as glyph outlines, never as `<text>`.
 struct LogoText: Codable, Equatable, Sendable {
+    /// What the user typed (at most `maxLength` characters, all drawable in the font).
     var string: String
-    var fontName: String        // PostScript name of a bundled OFL font, e.g. "LilitaOne"
+    var fontName: String        // PostScript name of a bundled logo font (`LogoFonts`)
     var center: CGPoint         // center of the line's typographic box, canvas space
     var pointSize: CGFloat
     var rotation: Double        // radians, clockwise on screen
     var fill: PaletteSlot
+    /// Letter spacing in 1/1000 em (the unit logo tools use): extra space
+    /// after every letter but the last.
+    var tracking: CGFloat = 0
+    /// Draw the string in capitals (the typed string is kept as typed).
+    var allCaps = false
+
+    static let maxLength = 24
+    /// Letter spacing range in 1/1000 em: a little tighter to very airy.
+    static let trackingRange: ClosedRange<CGFloat> = -50...400
+
+    /// The string that's drawn and exported.
+    var displayString: String { allCaps ? string.uppercased() : string }
 }
 
 /// An opaque sRGB color, stored and encoded as `"#RRGGBB"`.
