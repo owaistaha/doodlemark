@@ -32,8 +32,9 @@ XcodeGen generates the project from `project.yml`. No third-party packages.
      Grotesque (800). Never the variable files.
    - Logo fonts: 4–6 OFL fonts, starting with Lilita One (used by the
      export gate). Prefer static, single-weight files.
-4. Do the on-device test in the Definition of done: finger first, then a
-   Pencil/stylus if you have one.
+4. Work through `DEVICE_CHECKLIST.md` on the iPad, then do the on-device
+   test in the Definition of done: finger first, then a Pencil/stylus if you
+   have one.
 5. Create the public GitHub repo and record the demo video.
 
 **Claude Code can do itself:**
@@ -69,6 +70,9 @@ XcodeGen generates the project from `project.yml`. No third-party packages.
 10. Final build, then hand to the human for the device test.
 
 ## Hard rules
+- **Every step adds its device-only checks to `DEVICE_CHECKLIST.md`**
+  (numbered, with the expected result and a checkbox), not only to the
+  step's report.
 - **Follow `DESIGN.md`** for every color, font, size and radius. Put them in
   `Theme.swift` as tokens and never hard-code a hex in a view. Text on
   tangerine is always ink. Flat paper/white surfaces, no Liquid Glass styling.
@@ -169,6 +173,7 @@ Config/
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)
 project.yml
 RISKS.md
+DEVICE_CHECKLIST.md           (hand checks on a real iPad, added to by every step)
 ```
 
 ## Definition of done for v1
