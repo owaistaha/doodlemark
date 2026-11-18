@@ -20,10 +20,28 @@ enum SVGExporter {
     static let canvasSize: CGFloat = 1024
     /// Spacing of the dense polyline sampled from each stroke, in canvas points.
     static let sampleSpacing: CGFloat = 2
-    /// Ramer–Douglas–Peucker tolerance, in canvas points.
-    static let simplifyTolerance: CGFloat = 0.5
+    /// Ramer–Douglas–Peucker tolerance, in canvas points. 0.5 (the first value
+    /// tried) flattened finger-like wobble enough to reach 23% mismatch in one
+    /// gate tile; 0.25 brings it to 3% at modest file size. 0.1 gained little more.
+    static let simplifyTolerance: CGFloat = 0.25
+    /// A turn sharper than this at a simplified point is a corner and stays sharp.
+    /// Bends below it are smoothed. Misclassifying a tight curve as a corner
+    /// costs at most the RDP tolerance, so the exact value isn't critical.
+    static let cornerAngle: CGFloat = .pi / 4
     /// A stroke shorter than this is a tap and exports as a round dot.
     static let dotLength: CGFloat = 0.5
+    /// PencilKit draws a monoline stroke `slope · w + offset` points thick, where
+    /// `w` is `PKStrokePoint.size.width`. It's an affine law, not a ratio:
+    /// measured 4 → 4, 8 → 12, 16 → 28, 32 → 60, and w ≤ 2 draws nothing.
+    /// A scaled `stroke.transform` multiplies the result. Force, nib height and
+    /// point spacing don't matter. Documented by `MonolineWidthTests`.
+    static let monolineWidthSlope: CGFloat = 2
+    static let monolineWidthOffset: CGFloat = -4
+
+    /// The thickness PencilKit actually renders for a monoline point width (before transform scale).
+    static func renderedMonolineWidth(pointWidth: CGFloat) -> CGFloat {
+        max(0, monolineWidthSlope * pointWidth + monolineWidthOffset)
+    }
 
     static func svg(project: Project, ink: PKDrawing) throws(GlyphPaths.Failure) -> String {
         try svg(shapes: project.shapes, ink: ink, text: project.text)
@@ -66,7 +84,8 @@ enum SVGExporter {
 
     // MARK: - Ink strokes
 
-    /// One `<path>` for one monoline stroke, or nil if the stroke has no points.
+    /// One `<path>` for one monoline stroke, or nil if PencilKit wouldn't draw it
+    /// (no points, or too thin to render).
     static func strokeElement(for stroke: PKStroke) -> String? {
         let transform = stroke.transform
         var points: [CGPoint] = []
@@ -80,7 +99,8 @@ enum SVGExporter {
         // Monoline width is constant, so the median is just robust against odd samples.
         // A scaled transform scales the rendered width too.
         let scale = sqrt(abs(transform.a * transform.d - transform.b * transform.c))
-        let width = median(widths) * scale
+        let width = renderedMonolineWidth(pointWidth: median(widths)) * scale
+        guard width > 0 else { return nil }   // PencilKit draws nothing for it either
 
         let d: String
         if polylineLength(points) < dotLength {
@@ -105,10 +125,16 @@ enum SVGExporter {
         return HexColor.sRGB(from: light.cgColor) ?? (HexColor(red: 0, green: 0, blue: 0), 1)
     }
 
-    /// Cubic Béziers through the simplified points. Tangent directions come from
-    /// Catmull-Rom (neighbouring points), but each handle is a third of its own
-    /// segment's length. Plain uniform Catmull-Rom overshoots where RDP leaves a
-    /// long segment next to short ones, and this stays inside the hull instead.
+    /// Cubic Béziers through the simplified points.
+    ///
+    /// - Smooth points get a Catmull-Rom tangent (the direction from the previous
+    ///   to the next point).
+    /// - **Corners** (the path turns more than `cornerAngle` at a point) get
+    ///   one-sided tangents instead, so the stroke keeps its sharp point. Without
+    ///   this, RDP leaves a corner between two long straight legs and the averaged
+    ///   tangent turns a "V" into a "U" (caught by the zig-zag gate fixture).
+    /// - Handle length at a point is a third of the *shorter* neighbouring chord,
+    ///   so a long straight leg next to a short bend stays straight instead of bulging.
     static func smoothPathData(_ points: [CGPoint]) -> String {
         guard let first = points.first else { return "" }
         var d = "M\(pair(first))"
@@ -117,19 +143,40 @@ enum SVGExporter {
             return d
         }
 
-        for i in 0..<(points.count - 1) {
-            let p0 = points[max(i - 1, 0)]
-            let p1 = points[i]
-            let p2 = points[i + 1]
-            let p3 = points[min(i + 2, points.count - 1)]
-            let third = distance(p1, p2) / 3
-            let t1 = unit(p2 - p0, fallback: p2 - p1)
-            let t2 = unit(p3 - p1, fallback: p2 - p1)
-            let c1 = p1 + t1 * third
-            let c2 = p2 - t2 * third
-            d += " C\(pair(c1)) \(pair(c2)) \(pair(p2))"
+        let n = points.count
+        var tangentIn = [CGPoint](repeating: .zero, count: n)    // direction arriving at point i
+        var tangentOut = [CGPoint](repeating: .zero, count: n)   // direction leaving point i
+        var handle = [CGFloat](repeating: 0, count: n)
+        for i in 0..<n {
+            let previous = points[max(i - 1, 0)]
+            let next = points[min(i + 1, n - 1)]
+            let incoming = unit(points[i] - previous, fallback: next - points[i])
+            let outgoing = unit(next - points[i], fallback: points[i] - previous)
+            let isCorner = i > 0 && i < n - 1 && turnAngle(incoming, outgoing) > cornerAngle
+            if isCorner {
+                tangentIn[i] = incoming
+                tangentOut[i] = outgoing
+            } else {
+                let smooth = unit(next - previous, fallback: outgoing)
+                tangentIn[i] = smooth
+                tangentOut[i] = smooth
+            }
+            let chordIn = i > 0 ? distance(previous, points[i]) : .infinity
+            let chordOut = i < n - 1 ? distance(points[i], next) : .infinity
+            handle[i] = min(chordIn, chordOut) / 3
+        }
+
+        for i in 0..<(n - 1) {
+            let c1 = points[i] + tangentOut[i] * handle[i]
+            let c2 = points[i + 1] - tangentIn[i + 1] * handle[i + 1]
+            d += " C\(pair(c1)) \(pair(c2)) \(pair(points[i + 1]))"
         }
         return d
+    }
+
+    /// Angle between two unit directions, 0…π.
+    private static func turnAngle(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        acos(min(max(a.x * b.x + a.y * b.y, -1), 1))
     }
 
     /// Ramer–Douglas–Peucker, iterative (long strokes would recurse deeply).

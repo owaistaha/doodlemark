@@ -139,6 +139,8 @@ Doodlemark/
     LessonCompleteScreen.swift
   Storage/
     ProjectStore.swift
+  Debug/
+    ExportDebugScreen.swift     (DEBUG builds only: bare Ink canvas + SVG preview + share)
   Screens/
     GalleryScreen.swift
     NewLogoSheet.swift
@@ -149,7 +151,10 @@ Doodlemark/
     Fonts/                      (UI: static Bricolage Grotesque 800 + Inter 400/600/700; logo fonts; all with OFL.txt)
     Assets.xcassets
 DoodlemarkTests/
-  SVGExportTests.swift
+  SVGExportTests.swift          (the hard gate; images → GateOutput/, gitignored)
+  MonolineWidthTests.swift      (documents PencilKit's monoline width law)
+  Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
+  Snapshots/                    (byte-exact expected SVGs)
 Config/
   Base.xcconfig                 (committed; optionally includes ../Local.xcconfig)
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)

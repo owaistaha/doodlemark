@@ -43,6 +43,8 @@ targets:
     platform: iOS
     sources:
       - path: DoodlemarkTests
+        excludes:
+          - "GateOutput/**"            # gate images for humans, not test resources
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

@@ -73,7 +73,7 @@ final class SVGExporterTests: XCTestCase {
         let dot = Fixtures.monolineStroke([CGPoint(x: 300, y: 300)], width: 12)
         let element = try XCTUnwrap(SVGExporter.strokeElement(for: dot))
         XCTAssertTrue(element.contains(#"d="M300.00 300.00 L300.00 300.00""#), element)
-        XCTAssertTrue(element.contains(#"stroke-width="12.00""#), element)
+        XCTAssertTrue(element.contains(#"stroke-width="20.00""#), element)   // 2·12 − 4
     }
 
     func testScaledTransformScalesWidthAndPoints() throws {
@@ -81,7 +81,7 @@ final class SVGExporterTests: XCTestCase {
             [CGPoint(x: 10, y: 10), CGPoint(x: 110, y: 10)], width: 8,
             transform: CGAffineTransform(scaleX: 2, y: 2))
         let element = try XCTUnwrap(SVGExporter.strokeElement(for: stroke))
-        XCTAssertTrue(element.contains(#"stroke-width="16.00""#), element)
+        XCTAssertTrue(element.contains(#"stroke-width="24.00""#), element)   // (2·8 − 4) · 2
         XCTAssertTrue(element.contains("M20.00 20.00"), element)
         XCTAssertTrue(element.contains("220.00 20.00"), element)
     }
@@ -106,6 +106,11 @@ final class SVGExporterTests: XCTestCase {
         XCTAssertEqual(alpha, 1, accuracy: 0.001)
     }
 
+    func testStrokeTooThinToRenderIsSkipped() {
+        let hairline = Fixtures.monolineStroke([CGPoint(x: 0, y: 0), CGPoint(x: 50, y: 50)], width: 2)
+        XCTAssertNil(SVGExporter.strokeElement(for: hairline))
+    }
+
     // MARK: Simplification
 
     func testSimplifyKeepsCornersAndDropsCollinearPoints() {
@@ -116,6 +121,12 @@ final class SVGExporterTests: XCTestCase {
             + (1...20).map { CGPoint(x: 100, y: CGFloat($0) * 5) }
         XCTAssertEqual(SVGExporter.simplify(corner, tolerance: 0.5),
                        [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0), CGPoint(x: 100, y: 100)])
+    }
+
+    func testSharpCornerStaysSharp() {
+        // A "V": at the corner, each handle lies on its own leg, so the point stays sharp.
+        let d = SVGExporter.smoothPathData([CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 200), CGPoint(x: 200, y: 0)])
+        XCTAssertEqual(d, "M0.00 0.00 C33.33 66.67 66.67 133.33 100.00 200.00 C133.33 133.33 166.67 66.67 200.00 0.00")
     }
 
     // MARK: Number formatting

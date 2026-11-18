@@ -68,9 +68,14 @@ The design choices below make this risk small:
 1. For each stroke on the Ink layer:
    `stroke.path.interpolatedPoints(by: .distance(2))` gives a dense polyline in
    canvas space, after `stroke.transform` is applied.
-2. Simplify with Ramer–Douglas–Peucker (tolerance ≈ 0.5pt), then fit cubic
-   Béziers (Catmull-Rom → Bézier is fine for v1). This keeps the file small and smooth.
-3. Width = median `point.size.width` across the stroke's points (monoline is constant anyway).
+2. Simplify with Ramer–Douglas–Peucker (tolerance 0.25pt; 0.5 visibly
+   flattened finger wobble in the gate), then fit cubic Béziers: Catmull-Rom
+   tangents, handles a third of the shorter neighbouring chord, and **corner
+   detection** (turns > 45° keep one-sided tangents, or a "V" becomes a "U").
+3. Width: PencilKit does **not** draw a monoline stroke `point.size.width` thick.
+   Measured: rendered = max(0, 2·w − 4) × transform scale, where w = median
+   `point.size.width` (4 → 4, 8 → 12, 16 → 28; w ≤ 2 draws nothing). See
+   `SVGExporter.renderedMonolineWidth` and `MonolineWidthTests`.
 4. Color = `stroke.ink.color` → `#RRGGBB` + `stroke-opacity`.
 5. Shapes → `<path>` with `fill`, generated from the same geometry
    function that draws them on screen (one source of truth).
@@ -93,7 +98,10 @@ A unit test plus a tiny debug screen:
   a glyph-outline bug (flip, offset, kerning) shows up as a diff.
 - Pixel-compare. Pass = < 2% of all pixels differ by more than a small
   tolerance **and** the IoU of painted pixels is above a fixed threshold
-  (set in the test; only ever raised).
+  (set in the test; only ever raised), **and** no 32×32 tile has too many
+  mismatching painted pixels. Global ratios dilute a small local error (one
+  short stroke in a big logo), so the tile check catches it. All thresholds live
+  in `DoodlemarkTests/Gate/GateConfig.swift`, with the reasoning.
 - Negative controls: the same comparison with one stroke shifted, and with
   one stroke dropped, must **fail**. This proves the gate has teeth.
 - If corners round off after RDP + Catmull-Rom, add corner detection. Never
@@ -212,6 +220,10 @@ struct LogoText: Codable {
   var fill: HexColor
 }
 ```
+**Shape bounds (step 5):** selection handles, hit-testing and snapping use the
+shape's real path bounds (`ShapeGeometry.path(for:).boundingBoxOfPath`), never
+the `size × size` box. A regular star is narrower than its box.
+
 Saving: debounce 1s after any change, write atomically (`.atomic`). Never
 write all three files on every stroke.
 
