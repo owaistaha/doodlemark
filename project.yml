@@ -31,7 +31,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        UIAppFonts: []                 # Claude Code: list bundled OFL font files here
+        UIAppFonts:                    # bundled OFL fonts (license: <Name>-OFL.txt next to each)
+          - LilitaOne-Regular.ttf      # PostScript name: LilitaOne (logo font, export gate)
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
