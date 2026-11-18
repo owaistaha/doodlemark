@@ -42,6 +42,10 @@ targets:
     platform: iOS
     sources:
       - path: DoodlemarkTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.owaistaha.doodlemark.tests
     dependencies:
       - target: Doodlemark
 schemes:
