@@ -44,11 +44,12 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     }
 }
 
-/// Editor state for one project. Undo history, Mirror and Grid come in step 4c,
-/// saving in step 6.
+/// Editor state for one project, including the one undo history for all
+/// four layers. Saving comes in step 6.
 @MainActor @Observable
 final class CanvasModel {
     static let pencilOnlyKey = "pencilOnly"
+    static let smoothLinesKey = "smoothLines"
 
     var project: Project
     var sketch = PKDrawing()
@@ -66,10 +67,30 @@ final class CanvasModel {
     var pencilOnly: Bool = UserDefaults.standard.bool(forKey: CanvasModel.pencilOnlyKey) {
         didSet { UserDefaults.standard.set(pencilOnly, forKey: Self.pencilOnlyKey) }
     }
+    /// "Smooth my lines": Ink only, on by default, remembered across launches.
+    var smoothLines: Bool = UserDefaults.standard.object(forKey: CanvasModel.smoothLinesKey) == nil
+        || UserDefaults.standard.bool(forKey: CanvasModel.smoothLinesKey) {
+        didSet { UserDefaults.standard.set(smoothLines, forKey: Self.smoothLinesKey) }
+    }
+    /// Mirror (Ink only) and Grid live in the project so they're saved with it.
+    var mirrorOn: Bool {
+        get { project.symmetryOn }
+        set { project.symmetryOn = newValue }
+    }
+    var gridOn: Bool {
+        get { project.gridOn }
+        set { project.gridOn = newValue }
+    }
     /// Zoom relative to "whole canvas fits", reported by the canvas (1 = 100%).
     var zoomFactor: CGFloat = 1
     /// Bumped to ask the canvas to zoom back to fit.
     private(set) var fitRequest = 0
+    /// Bumped when undo/redo replaced the drawings, so the canvases reload them.
+    private(set) var restoreRequest = 0
+
+    private(set) var history = CanvasHistory()
+    private var toolInUse = false
+    private var recordedThisToolUse = false
 
     init(project: Project) {
         self.project = project
@@ -115,4 +136,73 @@ final class CanvasModel {
     }
 
     func zoomToFit() { fitRequest += 1 }
+
+    // MARK: Changes and undo
+
+    var snapshot: CanvasSnapshot {
+        CanvasSnapshot(sketch: sketch, ink: ink, shapes: project.shapes, text: project.text)
+    }
+
+    var canUndo: Bool { history.canUndo }
+    var canRedo: Bool { history.canRedo }
+
+    /// A finger or Pencil went down with a tool. Everything until `endToolUse`
+    /// (e.g. one eraser drag across several lines) is one undo step.
+    func beginToolUse() {
+        toolInUse = true
+        recordedThisToolUse = false
+    }
+
+    func endToolUse() {
+        toolInUse = false
+    }
+
+    /// The Sketch canvas changed (a stroke or an erase).
+    func sketchDidChange(_ drawing: PKDrawing) {
+        guard drawing != sketch else { return }
+        let before = snapshot
+        sketch = drawing
+        record(before)
+    }
+
+    /// The Ink canvas changed. A new stroke is smoothed first (if "Smooth my
+    /// lines" is on), then mirrored (if Mirror is on), and all of it is one
+    /// undo step. Returns the drawing the Ink canvas should show.
+    func inkDidChange(_ drawing: PKDrawing) -> PKDrawing {
+        guard drawing != ink else { return drawing }
+        let before = snapshot
+        var result = drawing
+        if drawing.strokes.count == ink.strokes.count + 1, var stroke = drawing.strokes.last {
+            if smoothLines { stroke = StrokeSmoother.smoothed(stroke) }
+            result.strokes[result.strokes.count - 1] = stroke
+            if mirrorOn { result.strokes.append(Symmetry.mirrored(stroke)) }
+        }
+        ink = result
+        record(before)
+        return result
+    }
+
+    func undo() {
+        guard let previous = history.undo(current: snapshot) else { return }
+        restore(previous)
+    }
+
+    func redo() {
+        guard let next = history.redo(current: snapshot) else { return }
+        restore(next)
+    }
+
+    private func record(_ before: CanvasSnapshot) {
+        if toolInUse, recordedThisToolUse { return }
+        history.record(before)
+        recordedThisToolUse = toolInUse
+    }
+
+    private func restore(_ state: CanvasSnapshot) {
+        sketch = state.sketch
+        ink = state.ink
+        project.shapes = state.shapes
+        project.text = state.text
+        restoreRequest += 1
+    }
 }

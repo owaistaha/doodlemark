@@ -3,9 +3,8 @@ import SwiftUI
 /// The editor (design/Canvas.png): top bar, tool rail, the square canvas on
 /// its backdrop, and the right panel with layers, palette and tool options.
 ///
-/// Step 4b scope: Sketch and Ink draw for real; Shapes and Text are
-/// placeholders (step 5). Undo/redo, Mirror and Grid arrive in step 4c,
-/// Preview & export in step 7, saving in step 6.
+/// Sketch and Ink draw for real, with undo/redo, Mirror and Grid. Shapes and
+/// Text are placeholders (step 5), Preview & export is step 7, saving step 6.
 struct CanvasScreen: View {
     @State var model: CanvasModel
     /// Back to the gallery. `nil` until the gallery exists (step 6).
@@ -26,6 +25,31 @@ struct CanvasScreen: View {
         .background(Theme.surface.ignoresSafeArea())
         .foregroundStyle(Theme.ink)
         .environment(\.colorScheme, .light)
+        .focusedSceneValue(\.canvasModel, model)
+    }
+}
+
+// MARK: - Keyboard: ⌘Z / ⇧⌘Z
+
+extension FocusedValues {
+    /// The canvas in the focused scene, for the Edit-menu commands.
+    @Entry var canvasModel: CanvasModel?
+}
+
+/// Replaces the system Undo/Redo menu items, which own ⌘Z / ⇧⌘Z on iPadOS,
+/// so the keyboard steps our one history whoever is first responder.
+struct CanvasCommands: Commands {
+    @FocusedValue(\.canvasModel) private var model
+
+    var body: some Commands {
+        CommandGroup(replacing: .undoRedo) {
+            Button("Undo") { model?.undo() }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(!(model?.canUndo ?? false))
+            Button("Redo") { model?.redo() }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(!(model?.canRedo ?? false))
+        }
     }
 }
 
@@ -47,10 +71,22 @@ private struct CanvasTopBar: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Undo/redo get their history in step 4c.
             HStack(spacing: 12) {
-                BarIconButton(symbol: "arrow.uturn.backward", label: "Undo") {}.disabled(true)
-                BarIconButton(symbol: "arrow.uturn.forward", label: "Redo") {}.disabled(true)
+                // ⌘Z / ⇧⌘Z are the scene's Edit-menu commands (CanvasCommands);
+                // the system undo gestures go through HistoryUndoManager.
+                BarIconButton(symbol: "arrow.uturn.backward", label: "Undo") { model.undo() }
+                    .disabled(!model.canUndo)
+                    .accessibilityIdentifier("undo")
+                BarIconButton(symbol: "arrow.uturn.forward", label: "Redo") { model.redo() }
+                    .disabled(!model.canRedo)
+                    .accessibilityIdentifier("redo")
+                Rectangle().fill(Theme.line).frame(width: Theme.Metrics.hairline, height: Theme.Metrics.barButton - 16)
+                    .padding(.horizontal, 4)
+                ToggleButton(title: "Mirror", symbol: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+                             isOn: model.mirrorOn) { model.mirrorOn.toggle() }
+                    .accessibilityIdentifier("mirror")
+                ToggleButton(title: "Grid", symbol: "squareshape.split.2x2", isOn: model.gridOn) { model.gridOn.toggle() }
+                    .accessibilityIdentifier("grid")
             }
 
             // Preview & export is step 7.
@@ -82,6 +118,32 @@ private struct BarIconButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+}
+
+/// "Toggle on" from the style guide: pencil blue with white text when on,
+/// white with a border when off (fill and border change, not color alone).
+private struct ToggleButton: View {
+    let title: String
+    let symbol: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(Theme.bodyStrong)
+                .foregroundStyle(isOn ? Theme.surface : Theme.ink)
+                .padding(.horizontal, 16)
+                .frame(height: Theme.Metrics.barButton)
+                .background(isOn ? Theme.pencilBlue : Theme.surface,
+                            in: RoundedRectangle(cornerRadius: Theme.Radius.button))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.button)
+                    .strokeBorder(isOn ? Theme.pencilBlue : Theme.line, lineWidth: Theme.Metrics.hairline))
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
@@ -184,7 +246,8 @@ private struct CanvasArea: View {
     }
 
     private var hint: String {
-        switch model.tool {
+        if model.mirrorOn, model.tool == .ink { return "Mirror is on: draw one side, the other side copies you" }
+        return switch model.tool {
         case .sketch: "Sketch freely. This layer is never exported."
         case .ink: "Ink: trace clean lines over your sketch"
         case .eraser: "Eraser: touch a line on the \(model.eraserLayer.title) layer to remove it"
@@ -392,6 +455,8 @@ private struct ToolOptions: View {
                         .accessibilityValue("\(Int(model.lineSize))")
                         .accessibilityIdentifier("lineSize")
                 }
+                CheckRow(title: "Smooth my lines", subtitle: nil, isOn: $model.smoothLines)
+                    .accessibilityIdentifier("smoothLines")
                 PencilOnlyRow(isOn: $model.pencilOnly)
             case .sketch:
                 Text("Sketch pencil").sectionLabelStyle()
@@ -420,11 +485,25 @@ private struct PencilOnlyRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
+        CheckRow(title: "Pencil only", subtitle: "Off = fingers and any stylus draw", isOn: $isOn)
+            .accessibilityIdentifier("pencilOnly")
+    }
+}
+
+/// A label with a checkbox; the whole row is the tap target.
+private struct CheckRow: View {
+    let title: String
+    let subtitle: String?
+    @Binding var isOn: Bool
+
+    var body: some View {
         Button { isOn.toggle() } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Pencil only").font(Theme.bodyStrong)
-                    Text("Off = fingers and any stylus draw").font(Theme.small).foregroundStyle(Theme.inkMuted)
+                    Text(title).font(Theme.bodyStrong)
+                    if let subtitle {
+                        Text(subtitle).font(Theme.small).foregroundStyle(Theme.inkMuted)
+                    }
                 }
                 Spacer(minLength: 0)
                 CheckBox(isOn: isOn)
@@ -433,9 +512,8 @@ private struct PencilOnlyRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Pencil only")
+        .accessibilityLabel(title)
         .accessibilityValue(isOn ? "On" : "Off")
-        .accessibilityIdentifier("pencilOnly")
     }
 }
 

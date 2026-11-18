@@ -249,13 +249,49 @@ the `size × size` box. A regular star is narrower than its box.
 Saving: debounce 1s after any change, write atomically (`.atomic`). Never
 write all three files on every stroke.
 
-## Symmetry guide
-PencilKit has no mirror mode. In the Ink canvas's
-`canvasViewDrawingDidChange`, find the newest stroke, build its mirrored copy
-around x = 512 (`PKStroke` with a mirrored `PKStrokePath`, or the same path
-with a horizontal flip `transform`) and append it. Tag mirrored strokes by
-creation date so undo removes the pair. Keep a guard flag so the append doesn't
-trigger itself again.
+## Undo history
+One history for all four layers (`Canvas/CanvasHistory.swift`): every user
+change records a snapshot of the state *before* it (Sketch drawing, Ink
+drawing, shapes, text). Undo/redo swap snapshots and the canvases reload.
+- PencilKit's own undo is off on both canvases: they return a
+  `HistoryUndoManager` whose registration is disabled. (PencilKit's undo
+  can't undo a programmatically appended mirror copy; step 4a spike, RISKS #1.)
+- Top-bar Undo/Redo buttons; ⌘Z / ⇧⌘Z are the scene's Edit-menu commands
+  (`CanvasCommands` replaces the system Undo/Redo items). Two-finger tap = undo,
+  three-finger tap = redo; both taps wait for pan and pinch to fail, so a
+  pinch never undoes. The system undo/redo gestures and the Edit menu reach
+  the same history through `HistoryUndoManager` (the stack is first responder).
+- One tool use is one step: everything between `canvasViewDidBeginUsingTool`
+  and `…DidEndUsingTool` (e.g. one eraser drag across several lines).
+- Capped at 100 steps (`CanvasHistory.limit`). Snapshots share unchanged
+  strokes: 100 steps on a busy drawing (500 strokes, 75,000 points, 0.92 MB
+  serialized) add about 6.5 MB, against about 92 MB if every snapshot were a
+  full copy (`HistoryMemoryTests`).
+
+## Smooth my lines (Ink only, default on)
+When an Ink stroke ends it is replaced by a smoothed copy in the same undo
+step (`Canvas/StrokeSmoother.swift`): a Gaussian along the stroke (σ = 5 pt),
+run between pinned points with odd reflection at each one, so straight runs
+don't move and nothing slides off a corner. Pinned: both endpoints and every
+corner sharper than 45°, found with the exporter's corner test on a 2 pt RDP
+simplification (coarse enough that finger wobble isn't a corner). Dots are
+untouched; only point locations change.
+**Learn mode scores the RAW stroke, before smoothing.** Smoothing would hide
+exactly the wobble the score and tips are about.
+
+## Mirror (Ink only)
+Vertical axis at x = 512. When an Ink stroke ends (after smoothing), a copy
+with a horizontal flip in its `transform` is appended (`Canvas/Symmetry.swift`).
+Points and widths are untouched and the exporter applies transforms, so the
+copy exports exactly (gate case `smoothed-mirrored`). The stroke, its smoothing
+and its mirror copy are one undo step because the history snapshots the whole
+canvas. On screen: a dashed `pencilBlue` axis line and the hint pill "Mirror
+is on: draw one side, the other side copies you".
+
+## Grid
+A 10 × 10 grid over the canvas (one line on the mirror axis), drawn in view
+space under the Sketch layer so lines stay 1 pt at any zoom. Grid and the
+mirror axis are on screen only: never in the SVG or PNG.
 
 ## Testing & CI (CV quality)
 - XCTest targets: `StrokeScorerTests` (identical stroke = 3★, reversed

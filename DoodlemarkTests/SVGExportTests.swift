@@ -45,6 +45,7 @@ final class SVGExportTests: XCTestCase {
     func testGateText() async throws { try await assertGatePasses("text") }
     func testGateTextRotated() async throws { try await assertGatePasses("text-rotated") }
     func testGateLogo() async throws { try await assertGatePasses("logo") }
+    func testGateSmoothedMirrored() async throws { try await assertGatePasses("smoothed-mirrored") }
 
     // MARK: Negative controls (must fail; if one passes, the gate is broken)
 

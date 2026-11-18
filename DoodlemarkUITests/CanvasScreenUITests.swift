@@ -11,6 +11,9 @@ final class CanvasScreenUITests: XCTestCase {
     func testSketchAndInkDrawOnTheirOwnLayers() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
+        // Start from the shipped defaults whatever an earlier run left in
+        // the simulator: Smooth my lines ON, Pencil only OFF.
+        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -57,6 +60,9 @@ final class CanvasScreenUITests: XCTestCase {
     func testPinchZoomsAndZoomPillFitsAgain() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
+        // Start from the shipped defaults whatever an earlier run left in
+        // the simulator: Smooth my lines ON, Pencil only OFF.
+        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -74,7 +80,130 @@ final class CanvasScreenUITests: XCTestCase {
         XCTAssertTrue(pill.label.hasPrefix("Zoom 100 percent"), pill.label)
     }
 
+    // MARK: Step 4c: undo, redo, Mirror, Grid
+
+    @MainActor
+    func testUndoRedoButtonsAcrossLayerSwitches() throws {
+        let (app, stack) = launchLandscape()
+        let undo = app.buttons["undo"], redo = app.buttons["redo"]
+        XCTAssertFalse(undo.isEnabled)
+
+        drag(stack, (0.2, 0.2), (0.8, 0.2))                       // Ink
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")
+        app.buttons["tool-sketch"].tap()
+        drag(stack, (0.2, 0.5), (0.8, 0.5))                       // Sketch
+        try waitForValue(stack, "Sketch: 1 line. Ink: 1 line.")
+        app.buttons["tool-ink"].tap()
+        drag(stack, (0.2, 0.8), (0.8, 0.8))                       // Ink
+        try waitForValue(stack, "Sketch: 1 line. Ink: 2 lines.")
+
+        undo.tap(); try waitForValue(stack, "Sketch: 1 line. Ink: 1 line.")
+        undo.tap(); try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")   // Sketch, while Ink is active
+        undo.tap(); try waitForValue(stack, "Sketch: 0 lines. Ink: 0 lines.")
+        XCTAssertFalse(undo.isEnabled)
+        redo.tap(); redo.tap(); redo.tap()
+        try waitForValue(stack, "Sketch: 1 line. Ink: 2 lines.")
+        XCTAssertFalse(redo.isEnabled)
+    }
+
+    @MainActor
+    func testTwoFingerTapUndoesAndThreeFingerTapRedoes() throws {
+        let (_, stack) = launchLandscape()
+        drag(stack, (0.2, 0.3), (0.8, 0.3))
+        drag(stack, (0.2, 0.6), (0.8, 0.6))
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")
+
+        stack.twoFingerTap()
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")   // undo, and no dot left behind
+        stack.tap(withNumberOfTaps: 1, numberOfTouches: 3)
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")   // redo, and no dot left behind
+
+        // The taps work with the Sketch layer active too, without marking it.
+        let app = XCUIApplication()
+        app.buttons["tool-sketch"].tap()
+        stack.twoFingerTap()
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")
+    }
+
+    @MainActor
+    func testPinchNeverUndoes() throws {
+        let (app, stack) = launchLandscape()
+        drag(stack, (0.2, 0.3), (0.8, 0.3))
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")
+        for scale in [1.8, 0.6, 2.2] {
+            stack.pinch(withScale: scale, velocity: scale > 1 ? 1 : -1)
+            sleep(1)
+            XCTAssertEqual(stack.value as? String, "Sketch: 0 lines. Ink: 1 line.", "pinch \(scale) changed the drawing")
+        }
+        XCTAssertTrue(app.buttons["undo"].isEnabled)
+        XCTAssertFalse(app.buttons["redo"].isEnabled, "nothing was undone")
+    }
+
+    /// Opt-in: `TEST_RUNNER_KEYBOARD_UI_TESTS=1 xcodebuild test … -only-testing:…/testCommandZUndoesAndShiftCommandZRedoes`
+    /// on a freshly booted simulator. The headless simulator has no hardware
+    /// keyboard attached (`ConnectHardwareKeyboard = 0`). `typeKey` key commands
+    /// arrive on the first app launch after boot and are dropped on later
+    /// launches, with the same code, so this can't run inside the full suite.
+    @MainActor
+    func testCommandZUndoesAndShiftCommandZRedoes() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["KEYBOARD_UI_TESTS"] == "1",
+                          "Keyboard test: run alone on a freshly booted simulator (see comment).")
+        let (app, stack) = launchLandscape()
+        drag(stack, (0.2, 0.3), (0.8, 0.3))
+        drag(stack, (0.2, 0.6), (0.8, 0.6))
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")
+        app.typeKey("z", modifierFlags: .command)
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 1 line.")
+        sleep(1)
+        XCTAssertEqual(stack.value as? String, "Sketch: 0 lines. Ink: 1 line.", "one ⌘Z must undo exactly one step")
+        app.typeKey("z", modifierFlags: [.command, .shift])
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 2 lines.")
+        sleep(1)
+        XCTAssertEqual(stack.value as? String, "Sketch: 0 lines. Ink: 2 lines.")
+    }
+
+    @MainActor
+    func testMirrorCopiesInTheSameUndoStepAndGridToggles() throws {
+        let (app, stack) = launchLandscape()
+        let mirror = app.buttons["mirror"], grid = app.buttons["grid"]
+        XCTAssertEqual(mirror.value as? String, "Off")
+        mirror.tap()
+        XCTAssertEqual(mirror.value as? String, "On")
+        XCTAssertTrue(app.descendants(matching: .any)["hintPill"].label.contains("Mirror is on"),
+                      "the hint pill should say Mirror is on")
+
+        // Half a rocket on the left; Mirror draws the right half.
+        for (from, to) in [((0.50, 0.14), (0.40, 0.30)), ((0.40, 0.30), (0.38, 0.62)),
+                           ((0.38, 0.62), (0.50, 0.62)), ((0.38, 0.55), (0.28, 0.72)), ((0.28, 0.72), (0.38, 0.66))] {
+            drag(stack, from, to)
+        }
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 10 lines.")
+        app.buttons["undo"].tap()
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 8 lines.")    // one undo: a stroke and its mirror
+        app.buttons["redo"].tap()
+        try waitForValue(stack, "Sketch: 0 lines. Ink: 10 lines.")
+
+        grid.tap()
+        XCTAssertEqual(grid.value as? String, "On")
+        keepScreenshot(app, "canvas-mirror-grid")
+        grid.tap()
+        XCTAssertEqual(grid.value as? String, "Off")
+    }
+
     // MARK: Helpers
+
+    @MainActor
+    private func launchLandscape() -> (XCUIApplication, XCUIElement) {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        // Start from the shipped defaults whatever an earlier run left in
+        // the simulator: Smooth my lines ON, Pencil only OFF.
+        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launch()
+        let stack = app.descendants(matching: .any)["canvasStack"]
+        XCTAssertTrue(stack.waitForExistence(timeout: 10))
+        return (app, stack)
+    }
 
     @MainActor
     private func drag(_ element: XCUIElement, _ from: (Double, Double), _ to: (Double, Double)) {

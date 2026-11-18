@@ -6,6 +6,7 @@ struct DoodlemarkApp: App {
         WindowGroup {
             RootView()
         }
+        .commands { CanvasCommands() }
     }
 }
 

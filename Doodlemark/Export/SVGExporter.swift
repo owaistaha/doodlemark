@@ -152,7 +152,7 @@ enum SVGExporter {
             let next = points[min(i + 1, n - 1)]
             let incoming = unit(points[i] - previous, fallback: next - points[i])
             let outgoing = unit(next - points[i], fallback: points[i] - previous)
-            let isCorner = i > 0 && i < n - 1 && turnAngle(incoming, outgoing) > cornerAngle
+            let isCorner = i > 0 && i < n - 1 && isCornerTurn(incoming, outgoing)
             if isCorner {
                 tangentIn[i] = incoming
                 tangentOut[i] = outgoing
@@ -179,9 +179,28 @@ enum SVGExporter {
         acos(min(max(a.x * b.x + a.y * b.y, -1), 1))
     }
 
+    /// THE corner test, shared with `StrokeSmoother`: the path turns by more
+    /// than `cornerAngle` between two unit directions.
+    static func isCornerTurn(_ incoming: CGPoint, _ outgoing: CGPoint) -> Bool {
+        turnAngle(incoming, outgoing) > cornerAngle
+    }
+
+    /// Corner test at `point` of a polyline: arriving from `previous`, leaving to `next`.
+    static func isCorner(previous: CGPoint, point: CGPoint, next: CGPoint) -> Bool {
+        let incoming = unit(point - previous, fallback: .zero)
+        let outgoing = unit(next - point, fallback: .zero)
+        guard incoming != .zero, outgoing != .zero else { return false }
+        return isCornerTurn(incoming, outgoing)
+    }
+
     /// Ramer–Douglas–Peucker, iterative (long strokes would recurse deeply).
     static func simplify(_ points: [CGPoint], tolerance: CGFloat) -> [CGPoint] {
-        guard points.count > 2 else { return points }
+        simplifiedIndices(points, tolerance: tolerance).map { points[$0] }
+    }
+
+    /// Ramer–Douglas–Peucker: the indices of the points that are kept, in order.
+    static func simplifiedIndices(_ points: [CGPoint], tolerance: CGFloat) -> [Int] {
+        guard points.count > 2 else { return Array(points.indices) }
         var keep = [Bool](repeating: false, count: points.count)
         keep[0] = true
         keep[points.count - 1] = true
@@ -204,7 +223,7 @@ enum SVGExporter {
                 stack.append((index, end))
             }
         }
-        return zip(points, keep).compactMap { $1 ? $0 : nil }
+        return keep.indices.filter { keep[$0] }
     }
 
     // MARK: - CGPath → SVG path data

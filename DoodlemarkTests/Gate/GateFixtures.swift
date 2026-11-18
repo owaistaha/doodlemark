@@ -73,7 +73,15 @@ enum GateFixtures {
         ("text", GateScene(text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 512)))),
         ("text-rotated", GateScene(text: Fixtures.pizzaText(center: CGPoint(x: 512, y: 512), rotation: -0.35))),
         ("logo", logo),
+        ("smoothed-mirrored", smoothedMirrored),
     ]
+
+    /// "Smooth my lines" + Mirror: the smoothed wobbly spiral and its mirror
+    /// copy (a flip in `transform`, determinant −1). Both must export exactly.
+    static var smoothedMirrored: GateScene {
+        let smoothed = StrokeSmoother.smoothed(wobbly)
+        return GateScene(ink: PKDrawing(strokes: [smoothed, Symmetry.mirrored(smoothed)]))
+    }
 
     static var allShapes: [LogoShape] {
         [

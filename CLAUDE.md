@@ -119,7 +119,10 @@ Doodlemark/
     Prompts.swift               (starter prompt cards)
   Canvas/
     CanvasScreen.swift
-    CanvasModel.swift           (editor state: tool, layers, pen, zoom)
+    CanvasModel.swift           (editor state: tool, layers, pen, zoom, change → undo)
+    CanvasHistory.swift         (one snapshot undo history for all four layers, 100 steps)
+    HistoryUndoManager.swift    (system undo → our history; PencilKit undo off)
+    StrokeSmoother.swift        ("Smooth my lines": Ink only, corners and ends pinned)
     CanvasViewport.swift        (one zoom/offset for every layer)
     LineSize.swift              (Line size ↔ PencilKit tool width; the only conversion)
     PencilCanvas.swift          (UIViewRepresentable around the layer stack)
