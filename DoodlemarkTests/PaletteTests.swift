@@ -202,7 +202,7 @@ final class PaletteTests: XCTestCase {
         model.previewColor(Fixtures.tangerine)      // slot 1's color, picked for slot 3
         model.endColorEdit()
         let third = model.project.palette[2]
-        XCTAssertFalse(InkPalette.matches(third, Fixtures.tangerine), "nudged apart")
+        XCTAssertNotEqual(third, Fixtures.tangerine, "nudged apart")
         XCTAssertLessThanOrEqual(abs(Int(third.green) - Int(Fixtures.tangerine.green)), 3, "invisibly")
         XCTAssertEqual(third.red, Fixtures.tangerine.red)
         XCTAssertEqual(third.blue, Fixtures.tangerine.blue)
@@ -214,9 +214,70 @@ final class PaletteTests: XCTestCase {
         XCTAssertEqual(inkColors(model), [Fixtures.tangerine, Fixtures.ink, Self.offPalette])
     }
 
-    func testInkColorsMatchWithinOneStep() {
-        XCTAssertTrue(InkPalette.matches(HexColor("#FF5A1F")!, HexColor("#FE5B1F")!))
-        XCTAssertFalse(InkPalette.matches(HexColor("#FF5A1F")!, HexColor("#FD5A1F")!))
+    func testInkLinksToASlotByExactColor() {
+        let near = HexColor("#FE5A1F")!                       // 1/255 off tangerine
+        let drawing = PKDrawing(strokes: [line(y: 100, color: Fixtures.tangerine), line(y: 200, color: near)])
+        XCTAssertEqual(InkPalette.slots(of: drawing, palette: Palettes.starter), [.first, nil])
+    }
+
+    /// The nudge, for every corner of the color cube and the values next to
+    /// the ends of each channel, against the worst case: one other slot with
+    /// the picked color and the other with the first nudge already taken.
+    func testNudgeIsAtMostThreeInOneChannelAndAlwaysDistinct() {
+        let values: [UInt8] = [0, 1, 2, 3, 4, 127, 251, 252, 253, 254, 255]
+        for r in values { for g in values { for b in values {
+            let color = HexColor(red: r, green: g, blue: b)
+            let first = InkPalette.keepingApart(color, from: [color])
+            for others in [[color], [color, first], [first, color]] {
+                let result = InkPalette.keepingApart(color, from: others)
+                XCTAssertFalse(others.contains(result), "\(color.hexString) vs \(others.map(\.hexString))")
+                XCTAssertLessThanOrEqual(channelChange(color, result), 3, color.hexString)
+                XCTAssertLessThanOrEqual(channelsChanged(color, result), 1, color.hexString)
+            }
+        } } }
+        XCTAssertEqual(InkPalette.keepingApart(Fixtures.tangerine, from: [Fixtures.ink]), Fixtures.tangerine,
+                       "a color no other slot has is never nudged")
+    }
+
+    /// Through the editor: a slot given another slot's color exports within
+    /// 3/255 of the picked color, for its shape, its text and its Ink line.
+    func testNudgedColorInTheSVGIsWithinThreeOfThePickedColor() throws {
+        let picks = ["#FF5A1F", "#000000", "#FFFFFF", "#00FF00", "#FFFEFF", "#7F7F7F"].map { HexColor($0)! }
+        for picked in picks {
+            for second in [Fixtures.ink, InkPalette.keepingApart(picked, from: [picked])] where second != picked {
+                var project = Project.blank()
+                let third = HexColor("#123456")!
+                project.palette = [picked, second, third]
+                project.shapes = [LogoShape(id: UUID(), kind: .circle, center: CGPoint(x: 512, y: 400),
+                                            size: 300, rotation: 0, fill: .third)]
+                project.text = Fixtures.pizzaText()
+                project.text?.fill = .third
+                let model = CanvasModel(project: project)
+                model.ink = PKDrawing(strokes: [line(y: 700, color: third)])
+
+                model.beginColorEdit(.third)
+                model.previewColor(picked)                     // slot 1's color
+                model.endColorEdit()
+
+                let svg = try SVGExporter.svg(project: model.project, ink: model.ink)
+                let exported = Set(svg.matches(of: /(?:fill|stroke)="(#[0-9A-F]{6})"/).map { HexColor(String($0.1))! })
+                    .subtracting([second])
+                XCTAssertEqual(exported.count, 1, "shape, text and line share the nudged color: \(exported)")
+                let nudged = try XCTUnwrap(exported.first)
+                XCTAssertEqual(nudged, model.project.palette[2])
+                XCTAssertNotEqual(nudged, picked, "slots stay distinct")
+                XCTAssertNotEqual(nudged, second)
+                XCTAssertLessThanOrEqual(channelChange(picked, nudged), 3, "\(picked.hexString) → \(nudged.hexString)")
+            }
+        }
+    }
+
+    private func channelChange(_ a: HexColor, _ b: HexColor) -> Int {
+        max(abs(Int(a.red) - Int(b.red)), abs(Int(a.green) - Int(b.green)), abs(Int(a.blue) - Int(b.blue)))
+    }
+
+    private func channelsChanged(_ a: HexColor, _ b: HexColor) -> Int {
+        [a.red != b.red, a.green != b.green, a.blue != b.blue].filter { $0 }.count
     }
 
     // MARK: Colour maths (WCAG 2 relative luminance, CIE76 ΔE)

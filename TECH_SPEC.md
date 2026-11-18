@@ -259,13 +259,7 @@ write all three files on every stroke.
 - Shapes and text store a **palette slot** (0/1/2), never a hex. The screen
   and the exporter resolve it through `project.palette`, so changing a
   slot's color recolors everything that uses it.
-- Ink strokes are PencilKit strokes and only know a color. A stroke belongs
-  to the slot whose color it has (± 1 per sRGB channel; the pen only draws
-  palette colors), and a slot change rewrites `stroke.ink.color` for that
-  slot's strokes (`Canvas/InkPalette.swift`). Ink type, points, widths and
-  transform don't change. Lines in a color that isn't in the palette stay
-  as they are. So that slots can always be told apart, a slot never gets a
-  color within matching distance of another slot: it's nudged by 3 in green.
+- Ink lines follow their slot too; see "How Ink lines follow a slot" below.
 - Tap a swatch = current color (Ink pen, new shapes, and the picked shape's
   fill, one undo step). "Try another" = the next curated palette. Tap and hold = the system
   color picker (`UIColorPickerViewController`, a popover from UIKit, because
@@ -275,6 +269,41 @@ write all three files on every stroke.
   it was when the picker opened, so passing through another slot's color
   never merges two slots' lines.
 - The undo snapshot includes the palette.
+
+### How Ink lines follow a slot (`Canvas/InkPalette.swift`)
+**The link is the exact color.** A `PKStroke` can't hold a palette slot: it
+has no custom data and no stable ID (mirror copies even share their source's
+creation date), so a side table keyed by stroke would break on erase, undo,
+smoothing, mirroring and reload. Its color, however, survives all of those
+unchanged. The Ink pen only ever draws palette colors, so a line belongs to
+the slot whose color is exactly its color (sRGB hex, light appearance). When a
+slot's color changes, only those lines' `stroke.ink.color` is rewritten; ink
+type, points, widths and transform stay as they are.
+
+**Why the +3 nudge.** The link only works while the three slots have three
+different colors. If a slot were given exactly another slot's color, their
+lines would merge for good: the next change to either slot would drag both
+sets of lines along. So a color picked for a slot that another slot already
+has is nudged by 3/255 in one channel: green first (+3, or −3 near 255),
+then red, then blue, whichever the other two slots don't have. Three steps
+of 255 can't be seen, and the SVG gets the nudged hex (tested: never more
+than 3/255 in one channel, `PaletteTests`). At least three of the six
+nudges stay in range and two other slots can block at most two of them, so
+one always fits.
+
+**Limits.**
+- It relies on PencilKit giving back the exact color it was given. That's
+  tested for finger strokes (UI test) and for save → reload (byte-identical
+  SVG, `DrawingPersistenceTests`). If a future PencilKit rounded colors
+  differently, lines would stop following palette changes: they'd keep
+  their old color, never get a wrong one. The step 6 reload test re-checks it.
+- A line in a color that isn't in the palette (none can be drawn in v1;
+  possible from a future import) never follows a slot.
+- Two slots can't hold the exact same color: someone who wants two slots
+  identical gets them 3/255 apart. "Try another" palettes always have three
+  distinct colors (`PaletteTests`).
+- A typed hex can export up to 3/255 off when it equals another slot's
+  color. Every other color exports exactly as picked.
 
 ## Shapes (step 5b)
 All the maths is in `Canvas/ShapeEditing.swift` (pure, unit-tested); the
