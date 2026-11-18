@@ -39,7 +39,7 @@ thicker border or a weight change.
 
 ## Shape, spacing, touch
 - 8 pt grid. Screen padding 48 (gallery) / 20 (editor bars).
-- Radii: 12 small controls · 14–16 buttons · 20 cards and tools · 24–28 big panels and the canvas.
+- Radii: 8 icon tiles and checkboxes · 12 small controls · 14–16 buttons · 20 cards and tools · 24–28 big panels and the canvas.
 - Touch targets ≥ 44 pt everywhere. Tool rail buttons are 76×76 pt. Primary buttons are 52–56 pt tall.
 - Shadows only on the canvas square and mockups: `0 12 40 ink@10%`.
 

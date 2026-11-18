@@ -119,7 +119,10 @@ Doodlemark/
     Prompts.swift               (starter prompt cards)
   Canvas/
     CanvasScreen.swift
-    PencilCanvas.swift          (UIViewRepresentable around PKCanvasView)
+    CanvasModel.swift           (editor state: tool, layers, pen, zoom)
+    CanvasViewport.swift        (one zoom/offset for every layer)
+    LineSize.swift              (Line size ↔ PencilKit tool width; the only conversion)
+    PencilCanvas.swift          (UIViewRepresentable around the layer stack)
     ShapesLayer.swift
     TextLayer.swift
     Symmetry.swift
@@ -141,6 +144,8 @@ Doodlemark/
     ProjectStore.swift
   Debug/
     ExportDebugScreen.swift     (DEBUG builds only: bare Ink canvas + SVG preview + share)
+    CanvasSpikeScreen.swift     (DEBUG builds only: step 4a mirror-undo + routing spike)
+    DebugLinks.swift            (DEBUG builds only: links to the two screens above)
   Screens/
     GalleryScreen.swift
     NewLogoSheet.swift
@@ -155,6 +160,7 @@ DoodlemarkTests/
   MonolineWidthTests.swift      (documents PencilKit's monoline width law)
   Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
   Snapshots/                    (byte-exact expected SVGs)
+DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas screen)
 Config/
   Base.xcconfig                 (committed; optionally includes ../Local.xcconfig)
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)

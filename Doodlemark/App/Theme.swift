@@ -1,9 +1,7 @@
 import SwiftUI
 
 /// Design tokens from DESIGN.md. This is the only file that may contain hex
-/// values: views use these names, never raw colors.
-///
-/// Fonts, spacing and radii are added when their first screen needs them.
+/// values: views use these names, never raw colors, fonts or sizes.
 enum Theme {
     // MARK: Colors (DESIGN.md → Color tokens)
 
@@ -35,6 +33,77 @@ enum Theme {
     static let butter = Color(hex: 0xFFC93C)
     /// Sketch-layer pencil color (faded look).
     static let sketchStroke = Color(hex: 0xC9C3D3)
+
+    // MARK: Type (DESIGN.md → Type). UI fonts only; logo text uses the logo fonts.
+
+    enum FontName {
+        static let display = "BricolageGrotesque-ExtraBold"   // 800
+        static let regular = "Inter-Regular"                 // 400
+        static let semibold = "Inter-SemiBold"               // 600
+        static let bold = "Inter-Bold"                       // 700
+    }
+
+    /// Display 44–48 (big screen titles).
+    static let display = Font.custom(FontName.display, size: 44)
+    /// Title 28.
+    static let title = Font.custom(FontName.display, size: 28)
+    /// Heading 20–24 (project name in the editor bar).
+    static let heading = Font.custom(FontName.display, size: 22)
+    /// Body 17.
+    static let body = Font.custom(FontName.regular, size: 17)
+    /// Buttons and row names: body size, semibold.
+    static let bodyStrong = Font.custom(FontName.semibold, size: 17)
+    /// Labels 15.
+    static let label = Font.custom(FontName.regular, size: 15)
+    static let labelStrong = Font.custom(FontName.semibold, size: 15)
+    /// Small 13.
+    static let small = Font.custom(FontName.regular, size: 13)
+    /// Section labels: 13 semibold, uppercase, +0.6 tracking (see `sectionLabel()`).
+    static let sectionLabel = Font.custom(FontName.semibold, size: 13)
+    static let sectionLabelTracking: CGFloat = 0.6
+
+    // MARK: Shape, spacing, touch (DESIGN.md → Shape, spacing, touch)
+
+    enum Radius {
+        static let tile: CGFloat = 8        // layer icon tiles, checkboxes
+        static let small: CGFloat = 12      // small controls, pills
+        static let button: CGFloat = 16     // buttons
+        static let card: CGFloat = 20       // cards, tools, layer rows
+        static let canvas: CGFloat = 28     // big panels and the canvas
+    }
+
+    enum Metrics {
+        static let grid: CGFloat = 8
+        static let barPadding: CGFloat = 20        // editor bars
+        static let minTarget: CGFloat = 44
+        static let topBarHeight: CGFloat = 72
+        static let barButton: CGFloat = 48         // square top-bar buttons
+        static let toolRailWidth: CGFloat = 100
+        static let toolButton: CGFloat = 76
+        static let rightPanelWidth: CGFloat = 300
+        static let layerRowHeight: CGFloat = 56
+        static let iconTile: CGFloat = 32
+        static let swatch: CGFloat = 60
+        static let hairline: CGFloat = 1
+        static let selectedBorder: CGFloat = 2     // selected rows and cards
+    }
+
+    /// The only shadow: canvas square and mockups, `0 12 40 ink@10%`.
+    enum CanvasShadow {
+        static let color = Theme.ink.opacity(0.10)
+        static let radius: CGFloat = 20            // SwiftUI radius ≈ CSS blur / 2
+        static let y: CGFloat = 12
+    }
+}
+
+extension View {
+    /// DESIGN.md section label: 13 semibold, uppercase, +0.6 tracking, muted.
+    func sectionLabelStyle() -> some View {
+        font(Theme.sectionLabel)
+            .tracking(Theme.sectionLabelTracking)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.inkMuted)
+    }
 }
 
 // `fileprivate` so only Theme can turn a hex literal into a color.

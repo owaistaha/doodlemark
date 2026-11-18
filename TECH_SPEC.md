@@ -20,7 +20,11 @@
 
 ## Input: finger, any stylus, Apple Pencil
 - Both `PKCanvasView`s use `canvasView.drawingPolicy = .anyInput` by default,
-  so one finger draws. PencilKit then makes **two fingers** pan/zoom the canvas.
+  so one finger draws. **Two fingers** pan/zoom the canvas. The layer stack
+  does this, not each `PKCanvasView`: one `CanvasViewport` (zoom + offset in
+  1024 space) drives both canvases and the SwiftUI Shapes/Text layers, and
+  only the active layer takes one-finger touches (`Canvas/PencilCanvas.swift`,
+  proven by the step 4a spike, RISKS.md #4).
 - Capacitive styluses (rubber/mesh tips) are seen by iPadOS as a finger, so
   `.anyInput` covers them. Logitech Crayon and Apple Pencil report as
   `.pencil` touches, and both work under `.anyInput` too.

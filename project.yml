@@ -33,6 +33,10 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIAppFonts:                    # bundled OFL fonts (license: <Name>-OFL.txt next to each)
           - LilitaOne-Regular.ttf      # PostScript name: LilitaOne (logo font, export gate)
+          - Inter-Regular.ttf          # UI, static 400 (Inter-Regular)
+          - Inter-SemiBold.ttf         # UI, static 600 (Inter-SemiBold)
+          - Inter-Bold.ttf             # UI, static 700 (Inter-Bold)
+          - BricolageGrotesque-ExtraBold.ttf  # UI display, static 800 (BricolageGrotesque-ExtraBold)
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:

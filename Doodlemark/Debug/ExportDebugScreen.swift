@@ -151,8 +151,8 @@ private struct DebugInkCanvas: UIViewRepresentable {
 
     func makeUIView(context: Context) -> FittedCanvasView {
         let view = FittedCanvasView()
+        view.canvas.drawing = drawing          // before the delegate, so no write-back mid-update
         view.canvas.delegate = context.coordinator
-        view.canvas.drawing = drawing
         view.accessibilityIdentifier = "debugInkCanvas"
         return view
     }

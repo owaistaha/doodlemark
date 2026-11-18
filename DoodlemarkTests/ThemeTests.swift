@@ -1,3 +1,4 @@
+import CoreText
 import SwiftUI
 import UIKit
 import XCTest
@@ -37,5 +38,17 @@ final class ThemeTests: XCTestCase {
         }
         func byte(_ value: CGFloat) -> UInt32 { UInt32((value * 255).rounded()) }
         return byte(red) << 16 | byte(green) << 8 | byte(blue)
+    }
+}
+
+/// The UI fonts from DESIGN.md are bundled, registered and static.
+final class ThemeFontTests: XCTestCase {
+    func testUIFontsAreRegisteredStaticInstances() {
+        for name in [Theme.FontName.display, Theme.FontName.regular, Theme.FontName.semibold, Theme.FontName.bold] {
+            guard let font = UIFont(name: name, size: 17) else { return XCTFail("\(name) is not registered") }
+            XCTAssertEqual(font.fontName, name)
+            let axes = CTFontCopyVariationAxes(font as CTFont) as? [Any]
+            XCTAssertTrue(axes?.isEmpty ?? true, "\(name) must be a static instance, not a variable font")
+        }
     }
 }
