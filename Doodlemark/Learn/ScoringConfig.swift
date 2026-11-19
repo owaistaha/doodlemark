@@ -20,6 +20,11 @@ struct ScoringConfig: Equatable, Sendable {
     /// drawing the whole line").
     var lengthRatio: ClosedRange<Double> = 0.6...1.5
 
+    /// Lengths for that check are measured on lines resampled with points at
+    /// least this far apart (and at most `sampleCount` points), so a shaky
+    /// finger on a short stroke isn't told it went "too long".
+    var lengthSampleSpacing: Double = 8
+
     /// Wobble = how much more the user's line turns, on average, between
     /// resampled segments than the target does (radians). Above this, one
     /// star comes off and the tip says to go slower. 0.25: a steady finger

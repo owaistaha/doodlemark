@@ -189,10 +189,16 @@ ink strokes at least 40 pt long. Example (trimmed):
 4. **Smoothness = mean absolute turning angle** between consecutive segments
    of the user's resampled stroke (it spots wobble).
 5. **Length check:** user length / target length must be within 0.6–1.5, or
-   it's a miss ("Try drawing the whole line"). Both lengths are measured on
-   the 64-point resampled lines, so wiggles shorter than the sample spacing
-   count as wobble, not as extra length (a shaky stroke along the whole line
-   isn't "too long").
+   it's a miss. Both lengths are measured on lines resampled with points at
+   least `lengthSampleSpacing` = 8 pt apart (at most 64 points), so wiggles
+   finer than that count as wobble, not as extra length, even on a short
+   step (a shaky stroke along the whole line isn't "too long").
+   Too short → "Try drawing the whole line". Too long says "Stop when you
+   reach the end" only if the stroke really traced the line and kept going:
+   cut where it comes closest to the target's end (or start, drawn
+   backwards), the head must be the right length and a 3-star match.
+   Otherwise the tip names the real problem: "very wobbly" if it's within
+   60 pt and shaky, else "stay close to the dashed line".
 6. Stars: Fréchet ≤ 18pt → 3★ · ≤ 36pt → 2★ · ≤ 60pt → 1★ · else 0★ (redo).
    Thresholds are in 1024 canvas space only. Strokes are read in canvas
    space, which is already zoom-independent, so never scale by `canvasZoom`.
@@ -211,7 +217,9 @@ step with simulated fingers (the gate's wobble at several strengths plus a
 slow drift off the line, through real PencilKit strokes) and writes the star
 spread to `GateOutput/learn-calibration.txt`. It asserts that the thresholds
 are fair: steady → 3★, ordinary → mostly 2–3★ and never a redo, 30 pt off →
-never 3★, 70 pt off → redo. `wobbleLimit` = 0.25 rad came from that run.
+never 3★, 70 pt off → redo, and sloppy / way-off redos are told about
+wobble or the line, not length (≤ 20% length tips). `wobbleLimit` = 0.25 rad
+came from that run.
 
 ### Lesson player
 - The same canvas screen in "lesson mode": the **ghost layer** (target strokes,

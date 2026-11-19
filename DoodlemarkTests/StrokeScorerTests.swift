@@ -57,8 +57,12 @@ final class StrokeScorerTests: XCTestCase {
         XCTAssertEqual(score.feedback.title, "Almost! Try once more")
         XCTAssertEqual(score.feedback.tip, "Try drawing the whole line, all the way to the end.")
 
+        // Traced the line, then went back over it: that really is too long.
         let tooLong = Self.curve + Self.curve.reversed().map { CGPoint(x: $0.x, y: $0.y + 1) }
-        XCTAssertEqual(StrokeScorer.score(tooLong, target: Self.curve).problem, .tooLong)
+        let long = StrokeScorer.score(tooLong, target: Self.curve)
+        XCTAssertEqual(long.problem, .tooLong)
+        XCTAssertEqual(long.stars, 0)
+        XCTAssertEqual(long.feedback.tip, "Stop when you reach the end of the dashed line.")
         XCTAssertEqual(StrokeScorer.score([CGPoint(x: 300, y: 300)], target: Self.curve).problem, .tooShort, "a tap")
     }
 
@@ -73,6 +77,27 @@ final class StrokeScorerTests: XCTestCase {
         XCTAssertEqual(score.problem, .wobble)
         XCTAssertEqual(score.feedback.title, "Nice shape!")
         XCTAssertEqual(score.feedback.tip, "Your line is a bit wobbly. Try going a little slower for 3 stars.")
+    }
+
+    /// A big zig-zag along a short line is long, but the tip says what's
+    /// really wrong: wobble, not "too long".
+    func testAShakyLongStrokeIsToldItsWobbly() {
+        let target = [CGPoint(x: 400, y: 500), CGPoint(x: 470, y: 500)]
+        let zigzag = (0...9).map { i in CGPoint(x: 400 + 70 * Double(i) / 9, y: 500 + (i.isMultiple(of: 2) ? -16 : 16)) }
+        let score = StrokeScorer.score(zigzag, target: target)
+        XCTAssertGreaterThan(score.lengthRatio, 1.5)
+        XCTAssertEqual(score.stars, 0)
+        XCTAssertEqual(score.problem, .wobble)
+        XCTAssertEqual(score.feedback.tip, "Your line got very wobbly. Go slowly and stay on the dashed line.")
+
+        // And a long line somewhere else entirely is "off the line".
+        let elsewhere = [CGPoint(x: 100, y: 900), CGPoint(x: 300, y: 950)]
+        XCTAssertEqual(StrokeScorer.score(elsewhere, target: target).problem, .shape)
+
+        // Drawing on past the end, straight, is "too long".
+        let overshoot = [CGPoint(x: 400, y: 500), CGPoint(x: 600, y: 500)]
+        XCTAssertEqual(StrokeScorer.score(overshoot, target: target).problem, .tooLong)
+        XCTAssertEqual(StrokeScorer.score(overshoot.reversed(), target: target).problem, .shape, "the head doesn't match")
     }
 
     /// Wobble never makes a stroke a redo on its own.

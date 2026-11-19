@@ -39,7 +39,11 @@ struct StrokeScore: Equatable, Sendable {
 /// 3. Shape = discrete Fréchet distance between the resampled polylines.
 /// 4. Wobble = the user's mean absolute turning angle minus the target's
 ///    (so a corner the target has isn't counted as wobble).
-/// 5. Length ratio (both measured on the resampled lines) outside 0.6–1.5 is a miss.
+/// 5. Length ratio outside 0.6–1.5 is a miss. Both lengths are measured on
+///    lines resampled with points at least 8 pt apart, so jitter isn't length.
+///    A too-long miss says "too long" only if the stroke, cut where it comes
+///    closest to the target's end, is a right-length 3-star trace; otherwise
+///    the tip names the real problem (off the line, wobble).
 /// 6. Stars from the distance; wobble takes one off (never below 1).
 ///
 /// It scores the RAW stroke: the lesson player must pass the stroke from
@@ -49,14 +53,17 @@ enum StrokeScorer {
         let n = config.sampleCount
         let u = resample(user, count: n)
         let t = resample(target, count: n)
-        // Lengths are measured on the resampled lines: wiggles shorter than
-        // the sample spacing are wobble, not extra length (a shaky stroke
-        // along the whole line isn't "too long").
-        let targetLength = length(of: t)
-        let ratio = targetLength > 0 ? length(of: u) / targetLength : 0
-        guard config.lengthRatio.contains(ratio), user.count >= 2 else {
+        // Lengths are measured on coarser resampled lines (points at least
+        // `lengthSampleSpacing` apart, at most N of them): wiggles finer
+        // than that are wobble, not extra length, even on a short stroke
+        // (a shaky line along the whole target isn't "too long").
+        let lengthCount = max(2, min(n, Int((length(of: target) / config.lengthSampleSpacing).rounded(.up)) + 1))
+        let coarseUser = resample(user, count: lengthCount)
+        let targetLength = length(of: resample(target, count: lengthCount))
+        let ratio = targetLength > 0 ? length(of: coarseUser) / targetLength : 0
+        guard user.count >= 2, ratio >= config.lengthRatio.lowerBound else {
             return StrokeScore(stars: 0, distance: .infinity, wobble: 0, lengthRatio: ratio, reversed: false,
-                               problem: ratio < config.lengthRatio.lowerBound || user.count < 2 ? .tooShort : .tooLong)
+                               problem: .tooShort)
         }
 
         let forward = frechetDistance(u, t)
@@ -65,6 +72,25 @@ enum StrokeScorer {
         let reversed = backward < forward
         let distance = min(forward, backward)
         let wobble = max(0, meanTurning(u) - meanTurning(t))
+
+        if ratio > config.lengthRatio.upperBound {
+            // A miss either way. The tip says "too long" only if the stroke
+            // really traced the line and kept going: cut it where it comes
+            // closest to the target's end (its start, if drawn backwards) and
+            // that head is the right length and a 3-star match. A long
+            // zig-zag or a line far off the target is told what's really wrong.
+            func tracedThenKeptGoing(_ head: [CGPoint], _ goal: [CGPoint]) -> Bool {
+                let headLength = length(of: resample(head, count: lengthCount))
+                return config.lengthRatio.contains(headLength / targetLength)
+                    && frechetDistance(resample(head, count: n), goal) <= config.threeStarDistance
+            }
+            let kept = tracedThenKeptGoing(self.head(of: user, endingNear: target[target.count - 1]), t)
+                || tracedThenKeptGoing(self.head(of: user, endingNear: target[0]), t.reversed())
+            let problem: StrokeProblem = kept ? .tooLong
+                : distance <= config.oneStarDistance && wobble > config.wobbleLimit ? .wobble : .shape
+            return StrokeScore(stars: 0, distance: distance, wobble: wobble, lengthRatio: ratio,
+                               reversed: reversed, problem: problem)
+        }
 
         var stars: Int
         switch distance {
@@ -102,6 +128,23 @@ enum StrokeScorer {
 
     static func length(of points: [CGPoint]) -> Double {
         zip(points, points.dropFirst()).reduce(0) { $0 + distance($1.0, $1.1) }
+    }
+
+    /// The stroke from its start up to the spot on it closest to `end`
+    /// (on a segment, not only at a point).
+    static func head(of points: [CGPoint], endingNear end: CGPoint) -> [CGPoint] {
+        guard points.count >= 2 else { return points }
+        var best = (index: 0, point: points[0], distance: distance(points[0], end))
+        for i in 0..<(points.count - 1) {
+            let a = points[i], b = points[i + 1]
+            let ab = CGVector(dx: b.x - a.x, dy: b.y - a.y)
+            let squared = Double(ab.dx * ab.dx + ab.dy * ab.dy)
+            let f = squared > 0 ? min(1, max(0, Double((end.x - a.x) * ab.dx + (end.y - a.y) * ab.dy) / squared)) : 0
+            let p = CGPoint(x: a.x + ab.dx * f, y: a.y + ab.dy * f)
+            let d = distance(p, end)
+            if d < best.distance { best = (i, p, d) }
+        }
+        return Array(points[...best.index]) + [best.point]
     }
 
     /// `count` points evenly spaced along the polyline, first and last kept.
@@ -187,6 +230,9 @@ struct StrokeFeedback: Equatable, Sendable {
         case (_, .tooLong):
             title = "Almost! Try once more"
             tip = "Stop when you reach the end of the dashed line."
+        case (0, .wobble):
+            title = "Almost! Try once more"
+            tip = "Your line got very wobbly. Go slowly and stay on the dashed line."
         case (0, _):
             title = "Almost! Try once more"
             tip = "Start on the blue dot and stay close to the dashed line."

@@ -125,6 +125,7 @@ final class LessonLoaderTests: XCTestCase {
                       "finger: shake × gate wobble, drift pt", ""]
         var byFinger: [String: [Int]] = [:]
         var wobbles: [String: [Double]] = [:]
+        var redoReasons: [String: [StrokeProblem: Int]] = [:]
         for lesson in LessonLibrary.all() {
             var row = lesson.id.padding(toLength: 12, withPad: " ", startingAt: 0)
             for finger in Self.fingers {
@@ -136,6 +137,7 @@ final class LessonLoaderTests: XCTestCase {
                         let score = StrokeScorer.score(trace, target: step.points!)
                         stars.append(score.stars)
                         wobbles[finger.name, default: []].append(score.wobble)
+                        if score.stars == 0 { redoReasons[finger.name, default: [:]][score.problem, default: 0] += 1 }
                     }
                 }
                 byFinger[finger.name, default: []] += stars
@@ -154,6 +156,11 @@ final class LessonLoaderTests: XCTestCase {
                                  stars.filter { $0 == 3 }.count * 100 / stars.count,
                                  stars.filter { $0 == 0 }.count * 100 / stars.count,
                                  w[w.count / 2], w.last!))
+            let reasons = redoReasons[finger.name] ?? [:]
+            if !reasons.isEmpty {
+                report.append("    redos say: " + reasons.sorted { $0.value > $1.value }
+                    .map { "\($0.key.rawValue) \($0.value)" }.joined(separator: ", "))
+            }
         }
         let text = report.joined(separator: "\n")
         print("CALIB|\n" + text)
@@ -171,5 +178,13 @@ final class LessonLoaderTests: XCTestCase {
         XCTAssertEqual(share("typical") { $0 == 0 }, 0, "and is never told to redo")
         XCTAssertEqual(share("sloppy") { $0 == 3 }, 0, "30 pt off the line is never 3 stars")
         XCTAssertGreaterThanOrEqual(share("way off") { $0 == 0 }, 0.8, "70 pt off is a redo")
+        // A shaky line along the whole target is told it's off the line,
+        // not that it's too long or short.
+        for finger in ["sloppy", "way off"] {
+            let reasons = redoReasons[finger] ?? [:]
+            let total = reasons.values.reduce(0, +)
+            let length = (reasons[.tooLong] ?? 0) + (reasons[.tooShort] ?? 0)
+            XCTAssertLessThanOrEqual(Double(length), Double(total) * 0.2, "\(finger) redos: \(reasons)")
+        }
     }
 }
