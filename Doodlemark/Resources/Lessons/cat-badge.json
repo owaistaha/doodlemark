@@ -1,0 +1,247 @@
+{
+  "id": "cat-badge",
+  "title": "Cat face badge",
+  "teaches": "faces from simple shapes",
+  "level": 2,
+  "palette": [
+    "#FF4F9A",
+    "#3A1048",
+    "#FFB3D1"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "name": "The badge",
+      "tip": "Give the cat a background",
+      "how": "Tap the circle to drop it in.",
+      "kind": "shape",
+      "shape": {
+        "kind": "circle",
+        "center": [
+          512,
+          540
+        ],
+        "size": 700,
+        "rotation": 0,
+        "fill": 2
+      }
+    },
+    {
+      "name": "The head",
+      "tip": "A cat's head is a big round shape",
+      "how": "Start at the top and go round the left side to the chin.",
+      "kind": "ink",
+      "points": [
+        [
+          512.0,
+          330.0
+        ],
+        [
+          471.2,
+          333.6
+        ],
+        [
+          431.6,
+          344.2
+        ],
+        [
+          394.5,
+          361.5
+        ],
+        [
+          360.9,
+          385.0
+        ],
+        [
+          332.0,
+          413.9
+        ],
+        [
+          308.5,
+          447.5
+        ],
+        [
+          291.2,
+          484.6
+        ],
+        [
+          280.6,
+          524.2
+        ],
+        [
+          277.0,
+          565.0
+        ],
+        [
+          280.6,
+          605.8
+        ],
+        [
+          291.2,
+          645.4
+        ],
+        [
+          308.5,
+          682.5
+        ],
+        [
+          332.0,
+          716.1
+        ],
+        [
+          360.9,
+          745.0
+        ],
+        [
+          394.5,
+          768.5
+        ],
+        [
+          431.6,
+          785.8
+        ],
+        [
+          471.2,
+          796.4
+        ],
+        [
+          512.0,
+          800.0
+        ]
+      ],
+      "width": 18
+    },
+    {
+      "name": "The ear",
+      "tip": "Pointy ears make it a cat",
+      "how": "Up to the tip, then back down to the head.",
+      "kind": "ink",
+      "points": [
+        [
+          352,
+          395
+        ],
+        [
+          331,
+          323
+        ],
+        [
+          310,
+          250
+        ],
+        [
+          365,
+          295
+        ],
+        [
+          420,
+          340
+        ]
+      ],
+      "width": 16
+    },
+    {
+      "name": "The eye",
+      "tip": "Eyes are little circles",
+      "how": "Draw a small circle all the way round. Mirror adds the other eye.",
+      "kind": "ink",
+      "points": [
+        [
+          440.0,
+          511.0
+        ],
+        [
+          428.0,
+          514.2
+        ],
+        [
+          419.2,
+          523.0
+        ],
+        [
+          416.0,
+          535.0
+        ],
+        [
+          419.2,
+          547.0
+        ],
+        [
+          428.0,
+          555.8
+        ],
+        [
+          440.0,
+          559.0
+        ],
+        [
+          452.0,
+          555.8
+        ],
+        [
+          460.8,
+          547.0
+        ],
+        [
+          464.0,
+          535.0
+        ],
+        [
+          460.8,
+          523.0
+        ],
+        [
+          452.0,
+          514.2
+        ],
+        [
+          440.0,
+          511.0
+        ]
+      ],
+      "width": 14
+    },
+    {
+      "name": "The nose",
+      "tip": "A tiny triangle nose",
+      "how": "Across to the left, then down to the middle.",
+      "kind": "ink",
+      "points": [
+        [
+          512,
+          612
+        ],
+        [
+          478,
+          612
+        ],
+        [
+          512,
+          652
+        ]
+      ],
+      "width": 14
+    },
+    {
+      "name": "The whiskers",
+      "tip": "Whiskers go out to the side",
+      "how": "One quick, straight line from the cheek outwards.",
+      "kind": "ink",
+      "points": [
+        [
+          420,
+          650
+        ],
+        [
+          350,
+          640
+        ],
+        [
+          280,
+          630
+        ]
+      ],
+      "width": 12
+    }
+  ]
+}

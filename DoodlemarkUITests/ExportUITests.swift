@@ -83,7 +83,7 @@ final class ExportUITests: XCTestCase {
     func testASavedLogoOpensItsExportScreen() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments += ["-resetProjects", "YES", "-seedSampleProjects", "YES"]
+        app.launchArguments += ["-resetProjects", "YES", "-hideCanvasTips", "YES", "-seedSampleProjects", "YES"]
         app.launch()
         let card = app.buttons.matching(identifier: "projectCard").firstMatch    // newest first: Pizza Rocket
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -108,7 +108,7 @@ final class ExportUITests: XCTestCase {
     private func launchOnNewLogo() -> (XCUIApplication, XCUIElement) {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-hideCanvasTips", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))

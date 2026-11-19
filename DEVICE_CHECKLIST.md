@@ -239,9 +239,9 @@ blank canvas at 100%.
     logo screen.
     *Expected:* the grid reflows to fewer columns, the chips move under the
     title, nothing is cut off or overlapping.
-46. [ ] **Files app.** (Optional) Settings → Doodlemark has nothing to set,
-    and the projects don't appear in the Files app (they're app data, not
-    documents).
+46. [ ] **Files app.** (Optional) The projects don't appear in the Files app
+    (they're app data, not documents). (Since step 8, Settings → Doodlemark
+    has one switch: "Show drawing tips again", see 60.)
     *Expected:* as described; note it if projects do show up in Files.
 47. [ ] **Crash mid-save (folder swap).** Draw a few Ink lines, change the
     palette with "Try another", and within a second swipe up to the app
@@ -290,3 +290,33 @@ blank canvas at 100%.
 57. [ ] **Back to drawing.** Tap "Back to drawing" after sharing.
     *Expected:* the canvas is exactly as it was (same tool, layers, zoom),
     and the gallery card is up to date.
+
+## Step 8: first-canvas tips
+
+58. [ ] **First canvas.** Delete and reinstall the app, tap New logo → Start
+    drawing.
+    *Expected:* "Sketch it messy first" points at the Sketch tool, then
+    "Then trace it clean" at Ink, then "Show it to the world" at Preview &
+    export. The ring sits right around each control in landscape and
+    portrait. A finger on the dimmed canvas draws nothing.
+59. [ ] **Shown once, Skip.** Open another logo; reinstall and tap "Skip
+    tips" on the first tip.
+    *Expected:* no tips on the second canvas; Skip ends them for good.
+60. [ ] **Show again.** Settings → Doodlemark → turn on "Show drawing tips
+    again", go back to the app, open a logo.
+    *Expected:* the tips show again once, and the switch is off again in
+    Settings afterwards.
+61. [ ] **VoiceOver.** With VoiceOver on, open the first canvas.
+    *Expected:* it reads "Tip 1 of 3. Sketch it messy first", the body,
+    and the Got it / Skip tips buttons; the canvas behind isn't reachable.
+
+## Step 8b (part 1): scoring thresholds
+
+62. [ ] **Finger calibration (needs the lesson player, 8b part 2).** Trace
+    each lesson's steps with a finger: once carefully, once at normal
+    speed, once fast and sloppy. Note the stars and the tip each time.
+    *Expected:* careful = 3 stars, normal = mostly 2–3 and never "Almost!
+    Try once more", sloppy = 0–2. If a careful finger gets the wobble tip,
+    raise `ScoringConfig.wobbleLimit` (now 0.25); if sloppy lines get 3
+    stars, lower the distance thresholds. The simulator check is in
+    `DoodlemarkTests/GateOutput/learn-calibration.txt`.

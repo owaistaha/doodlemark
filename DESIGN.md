@@ -138,6 +138,19 @@ thicker border or a weight change.
 - Nothing to export: an alert "Draw something first." ("Ink a line, add a
   shape or type a name. Your sketch stays private, so it doesn't count.").
 
+## First-canvas tips (step 8)
+- The first canvas ever opened shows 3 tips, one after another, each
+  pointing at its control: "Sketch it messy first" (Sketch tool), "Then
+  trace it clean" (Ink tool), "Show it to the world" (Preview & export).
+- The screen dims (ink at 35%) except the control, which gets a 3 pt
+  `pencilBlue` ring. A white card (radius 20, the mockup shadow, 380 pt)
+  sits next to it with a small arrow: right of rail tools, under the top-bar
+  button. "TIP 1 OF 3" (section label), the title (title 28), one or two
+  short sentences (body, `inkMuted`), "Skip tips" (text button, 44 pt+) and
+  a tangerine "Got it" (56 pt). The last tip has no Skip.
+- Shown once. Finishing or skipping ends them for good; Settings →
+  Doodlemark → "Show drawing tips again" brings them back once.
+
 ## Voice
 Friendly words over jargon: "Smooth my lines", not "stroke stabilization";
 "Mirror", not "symmetry guide"; "Your sketch layer stays private. It's never

@@ -137,19 +137,36 @@ something to work around in the UI.
 ## Learn mode
 
 ### Lesson format (bundled JSON, `Resources/Lessons/<id>.json`)
+Five lessons, in this order (`LessonLibrary.ids`): `rocket`, `bolt-shield`,
+`star-club` (Easy), `cat-badge`, `moon-cafe` (Medium). Each step also has a
+short `name` ("The fins"), the `tip` (the big line, "Give it fins so it
+looks like it's flying") and `how` ("Start on the blue dot…"), as in
+design/Lesson.png; lessons have `teaches` for the card ("learn curves and
+Mirror"). A shape step has `"shape": {"kind", "center", "size", "rotation",
+"fill"}` (fill = palette slot). `LessonLibrary.validate` checks: 3 colors,
+4–8 steps, every point inside 0…1024, Mirror lessons only left of x = 512,
+ink strokes at least 40 pt long. Example (trimmed):
 ```json
 {
   "id": "rocket",
   "title": "Rocket in 5 strokes",
+  "teaches": "learn curves and Mirror",
   "level": 1,
   "palette": ["#FF5A1F", "#1C1B22", "#FFC93C"],
   "mirror": true,
   "steps": [
     {
-      "tip": "Start with one simple curve. Mirror draws the other half.",
+      "name": "The badge", "tip": "Every logo needs a home",
+      "how": "Tap the circle to drop it in. Big and simple works best.",
+      "kind": "shape",
+      "shape": {"kind": "circle", "center": [512, 476], "size": 680, "rotation": 0, "fill": 0}
+    },
+    {
+      "name": "The fins", "tip": "Give it fins so it looks like it's flying",
+      "how": "Start on the blue dot and follow the dashed line: down, out, then back in.",
       "kind": "ink",
-      "points": [[300,112],[288,130],[272,170],[262,230],[262,300]],
-      "width": 14
+      "points": [[445, 512], [414.5, 563], [384, 613], [422.5, 595.5], [461, 578]],
+      "width": 18
     }
   ]
 }
@@ -172,16 +189,29 @@ something to work around in the UI.
 4. **Smoothness = mean absolute turning angle** between consecutive segments
    of the user's resampled stroke (it spots wobble).
 5. **Length check:** user length / target length must be within 0.6–1.5, or
-   it's a miss ("Try drawing the whole line").
+   it's a miss ("Try drawing the whole line"). Both lengths are measured on
+   the 64-point resampled lines, so wiggles shorter than the sample spacing
+   count as wobble, not as extra length (a shaky stroke along the whole line
+   isn't "too long").
 6. Stars: Fréchet ≤ 18pt → 3★ · ≤ 36pt → 2★ · ≤ 60pt → 1★ · else 0★ (redo).
    Thresholds are in 1024 canvas space only. Strokes are read in canvas
    space, which is already zoom-independent, so never scale by `canvasZoom`.
    Drop one star if smoothness is worse than a threshold, and say so in the tip.
+   Smoothness is the user's mean turning **minus the target's** (so a corner
+   the target has, like the lightning bolt's, isn't wobble), and wobble never
+   takes a stroke below 1 star on its own. Going the other way round costs
+   nothing; the tip just mentions the blue dot.
 7. Tip text is picked from fixed copy by the main problem
    (shape / direction / length / wobble). No generated text.
 
 Starting thresholds come from testing on a real iPad with a finger. Make them
-constants in `ScoringConfig.swift`, not magic numbers.
+constants in `ScoringConfig.swift`, not magic numbers. Until then,
+`LessonLoaderTests.testThresholdsAreFairToWobblyFingers` traces every lesson
+step with simulated fingers (the gate's wobble at several strengths plus a
+slow drift off the line, through real PencilKit strokes) and writes the star
+spread to `GateOutput/learn-calibration.txt`. It asserts that the thresholds
+are fair: steady → 3★, ordinary → mostly 2–3★ and never a redo, 30 pt off →
+never 3★, 70 pt off → redo. `wobbleLimit` = 0.25 rad came from that run.
 
 ### Lesson player
 - The same canvas screen in "lesson mode": the **ghost layer** (target strokes,
@@ -201,6 +231,17 @@ Create a new `Project` named after the lesson, with the lesson palette and
 `symmetryOn = lesson.mirror`. Ink = the user's kept strokes as a `PKDrawing`
 (mirrored copies included), Shapes = the lesson's shape steps. Then open it in
 normal editing mode.
+
+## First-canvas tips (step 8)
+`Canvas/CanvasTips.swift`. `CanvasTipsModel` decides (UserDefaults
+`canvasTipsSeen`; set on the last "Got it" or "Skip tips", so leaving
+midway shows them again). The Settings.bundle switch `showCanvasTipsAgain`
+clears it once and turns itself off. Controls report their frames with
+`canvasTipAnchor(_:)` (an anchor preference), and one overlay on the canvas
+screen draws the dimmed layer with a hole, the ring and the card, so the
+tips follow the real layout in any orientation. The dimmed layer takes all
+touches, so nothing is drawn under the tips. DEBUG flags:
+`-resetCanvasTips YES`, `-hideCanvasTips YES` (every other UI test).
 
 ## Data model (files, no database)
 ```
@@ -523,7 +564,7 @@ mirror axis are on screen only: never in the SVG or PNG.
 ## Testing & CI (CV quality)
 - XCTest targets: `StrokeScorerTests` (identical stroke = 3★, reversed
   stroke = same score, shifted 50pt = lower, half-length = miss, zig-zag over a
-  straight target = wobble tip), `LessonLoaderTests` (every bundled lesson
+  straight target = wobble tip, same stroke = same score), `LessonLoaderTests` (every bundled lesson
   parses and its points are inside 0…1024), `SVGExportTests` (pixel-diff gate), `ShapeGeometryTests`,
   `SymmetryTests`, `ProjectStoreTests` (save → load round-trip, crash anywhere in a save →
   full old or full new save), `ExportTests` (export files vs the gate).

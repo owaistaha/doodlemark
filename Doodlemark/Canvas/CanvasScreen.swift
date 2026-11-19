@@ -3,14 +3,16 @@ import SwiftUI
 /// The editor (design/Canvas.png): top bar, tool rail, the square canvas on
 /// its backdrop, and the right panel with layers, palette and tool options.
 ///
-/// Every tool works, with one undo history; the project autosaves. Preview &
-/// export is step 7.
+/// Every tool works, with one undo history; the project autosaves. The
+/// first canvas ever opened shows three tips (`CanvasTips`).
 struct CanvasScreen: View {
     @State var model: CanvasModel
     /// Saves the project; drives "Saved" in the top bar.
     var autosaver: ProjectAutosaver?
     /// Back to the gallery (saves first).
     var onBack: (() -> Void)?
+    /// The three first-canvas tips (shown once).
+    @State private var tips = CanvasTipsModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,8 +36,28 @@ struct CanvasScreen: View {
         }
         .background(Theme.surface.ignoresSafeArea())
         .foregroundStyle(Theme.ink)
+        .canvasTips(tips)
         .environment(\.colorScheme, .light)
         .focusedSceneValue(\.canvasModel, model)
+        .onAppear { tips.startIfNeeded() }
+    }
+}
+
+private extension CanvasTool {
+    /// The first-canvas tip that points at this tool, if any.
+    var tip: CanvasTip? {
+        switch self {
+        case .sketch: .sketch
+        case .ink: .ink
+        default: nil
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func canvasTipAnchor(_ tip: CanvasTip?) -> some View {
+        if let tip { canvasTipAnchor(tip) } else { self }
     }
 }
 
@@ -120,6 +142,7 @@ private struct CanvasTopBar: View {
 
             PrimaryButton(title: "Preview & export", symbol: "square.and.arrow.up") { openExport() }
                 .accessibilityIdentifier("previewExport")
+                .canvasTipAnchor(CanvasTip.export)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, Theme.Metrics.barPadding)
@@ -229,6 +252,7 @@ private struct ToolRail: View {
         VStack(spacing: 12) {
             ForEach(CanvasTool.allCases) { tool in
                 ToolButton(tool: tool, selected: model.tool == tool) { model.select(tool) }
+                    .canvasTipAnchor(tool.tip)
             }
             Spacer(minLength: 0)
         }

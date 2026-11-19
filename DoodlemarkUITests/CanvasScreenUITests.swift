@@ -13,7 +13,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-hideCanvasTips", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -62,7 +62,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-hideCanvasTips", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -483,7 +483,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-hideCanvasTips", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))

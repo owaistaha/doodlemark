@@ -188,7 +188,7 @@ final class GalleryUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
         app.launchArguments = (reset ? ["-resetProjects", "YES"] : []) + extra
-            + ["-smoothLines", "YES", "-pencilOnly", "NO"]
+            + ["-smoothLines", "YES", "-pencilOnly", "NO", "-hideCanvasTips", "YES"]
         app.launch()
         // Wait for the turn to landscape. (A predicate on "frame.size.width"
         // never matches, so it used to wait the full 5 s.)

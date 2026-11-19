@@ -1,0 +1,194 @@
+{
+  "id": "bolt-shield",
+  "title": "Lightning shield",
+  "teaches": "straight lines and corners",
+  "level": 1,
+  "palette": [
+    "#3D5AFE",
+    "#0F0F1F",
+    "#FFD23F"
+  ],
+  "mirror": false,
+  "steps": [
+    {
+      "name": "The top",
+      "tip": "Shields start with a pointy top",
+      "how": "Two straight lines with one corner in the middle. Stop sharp at the corner.",
+      "kind": "ink",
+      "points": [
+        [
+          300,
+          250
+        ],
+        [
+          406,
+          220
+        ],
+        [
+          512,
+          190
+        ],
+        [
+          618,
+          220
+        ],
+        [
+          724,
+          250
+        ]
+      ],
+      "width": 18
+    },
+    {
+      "name": "The left side",
+      "tip": "Go down, then curve in",
+      "how": "Start at the top left. Go straight down, then bend in to the point at the bottom.",
+      "kind": "ink",
+      "points": [
+        [
+          300,
+          250
+        ],
+        [
+          300,
+          400
+        ],
+        [
+          300,
+          520
+        ],
+        [
+          304.6,
+          559.5
+        ],
+        [
+          313.9,
+          598.0
+        ],
+        [
+          328.0,
+          635.6
+        ],
+        [
+          346.8,
+          672.1
+        ],
+        [
+          370.4,
+          707.7
+        ],
+        [
+          398.7,
+          742.2
+        ],
+        [
+          431.7,
+          775.8
+        ],
+        [
+          469.5,
+          808.4
+        ],
+        [
+          512.0,
+          840.0
+        ]
+      ],
+      "width": 18
+    },
+    {
+      "name": "The right side",
+      "tip": "Now make it match",
+      "how": "Same again on the right. Try to make both sides the same.",
+      "kind": "ink",
+      "points": [
+        [
+          724,
+          250
+        ],
+        [
+          724,
+          400
+        ],
+        [
+          724,
+          520
+        ],
+        [
+          719.4,
+          559.5
+        ],
+        [
+          710.1,
+          598.0
+        ],
+        [
+          696.0,
+          635.6
+        ],
+        [
+          677.2,
+          672.1
+        ],
+        [
+          653.6,
+          707.7
+        ],
+        [
+          625.3,
+          742.2
+        ],
+        [
+          592.3,
+          775.8
+        ],
+        [
+          554.5,
+          808.4
+        ],
+        [
+          512.0,
+          840.0
+        ]
+      ],
+      "width": 18
+    },
+    {
+      "name": "The bolt",
+      "tip": "Lightning is all corners",
+      "how": "Zig, zag, zig. Make each corner sharp, like a real flash.",
+      "kind": "ink",
+      "points": [
+        [
+          560,
+          290
+        ],
+        [
+          500,
+          415
+        ],
+        [
+          440,
+          540
+        ],
+        [
+          490,
+          540
+        ],
+        [
+          540,
+          540
+        ],
+        [
+          505,
+          650
+        ],
+        [
+          470,
+          760
+        ]
+      ],
+      "width": 20
+    }
+  ]
+}

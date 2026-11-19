@@ -1,0 +1,174 @@
+{
+  "id": "star-club",
+  "title": "Star club badge",
+  "teaches": "circles that close",
+  "level": 1,
+  "palette": [
+    "#FF5A1F",
+    "#1C1B22",
+    "#FFC93C"
+  ],
+  "mirror": true,
+  "steps": [
+    {
+      "name": "The ring",
+      "tip": "Draw half a circle",
+      "how": "Start at the top and go round the left side to the bottom. Mirror closes the circle.",
+      "kind": "ink",
+      "points": [
+        [
+          512.0,
+          152.0
+        ],
+        [
+          460.8,
+          155.7
+        ],
+        [
+          410.6,
+          166.6
+        ],
+        [
+          362.5,
+          184.5
+        ],
+        [
+          317.4,
+          209.1
+        ],
+        [
+          276.3,
+          239.9
+        ],
+        [
+          239.9,
+          276.3
+        ],
+        [
+          209.1,
+          317.4
+        ],
+        [
+          184.5,
+          362.5
+        ],
+        [
+          166.6,
+          410.6
+        ],
+        [
+          155.7,
+          460.8
+        ],
+        [
+          152.0,
+          512.0
+        ],
+        [
+          155.7,
+          563.2
+        ],
+        [
+          166.6,
+          613.4
+        ],
+        [
+          184.5,
+          661.5
+        ],
+        [
+          209.1,
+          706.6
+        ],
+        [
+          239.9,
+          747.7
+        ],
+        [
+          276.3,
+          784.1
+        ],
+        [
+          317.4,
+          814.9
+        ],
+        [
+          362.5,
+          839.5
+        ],
+        [
+          410.6,
+          857.4
+        ],
+        [
+          460.8,
+          868.3
+        ],
+        [
+          512.0,
+          872.0
+        ]
+      ],
+      "width": 18
+    },
+    {
+      "name": "The star's point",
+      "tip": "Stars start with a sharp tip",
+      "how": "From the top dot, go down and out to the left point.",
+      "kind": "ink",
+      "points": [
+        [
+          512,
+          290
+        ],
+        [
+          450,
+          455
+        ],
+        [
+          274,
+          463
+        ]
+      ],
+      "width": 16
+    },
+    {
+      "name": "The star's arm",
+      "tip": "Tuck in, then out again",
+      "how": "From the left point, go in and then down to the bottom point.",
+      "kind": "ink",
+      "points": [
+        [
+          274,
+          463
+        ],
+        [
+          412,
+          572
+        ],
+        [
+          365,
+          742
+        ]
+      ],
+      "width": 16
+    },
+    {
+      "name": "The star's foot",
+      "tip": "Finish in the middle",
+      "how": "From the bottom point, go back up to the middle. Mirror draws the other half.",
+      "kind": "ink",
+      "points": [
+        [
+          365,
+          742
+        ],
+        [
+          512,
+          645
+        ]
+      ],
+      "width": 16
+    }
+  ]
+}

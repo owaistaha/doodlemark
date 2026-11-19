@@ -103,6 +103,20 @@ enum Theme {
         static let checkbox: CGFloat = 28
     }
 
+    /// First-canvas tips.
+    enum Tips {
+        static let cardWidth: CGFloat = 380
+        /// Space around the control inside its ring.
+        static let holePadding: CGFloat = 6
+        static let ring: CGFloat = 3
+        /// The triangle from the card to the control.
+        static let arrow: CGFloat = 12
+        static let gap: CGFloat = 6
+        /// Card top to its arrow, for cards beside a rail tool.
+        static let arrowInset: CGFloat = 44
+        static let scrim = Theme.ink.opacity(0.35)
+    }
+
     /// Preview & export mockups (design/Export.png).
     enum Mockup {
         /// Pixel size of the logo render the big mockups use.

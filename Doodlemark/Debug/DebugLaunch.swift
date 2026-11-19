@@ -12,6 +12,8 @@ import os
 /// - `-seedBrokenProject YES`: add a project folder whose project.json is garbage.
 /// - `-openNewLogo YES`: open straight onto a new blank logo (the canvas UI tests).
 /// - `-traceTouches YES`: log every touch and tool change (see `TouchTrace`).
+/// - `-resetCanvasTips YES`: show the first-canvas tips again.
+/// - `-hideCanvasTips YES`: mark them seen (UI tests that aren't about tips).
 enum DebugLaunch {
     private static var defaults: UserDefaults { .standard }
 
@@ -24,6 +26,8 @@ enum DebugLaunch {
         }
         if defaults.bool(forKey: "seedSampleProjects") { SampleProjects.seed(into: store) }
         if defaults.bool(forKey: "seedBrokenProject") { SampleProjects.seedBroken(into: store) }
+        if defaults.bool(forKey: "resetCanvasTips") { defaults.removeObject(forKey: CanvasTipsModel.seenKey) }
+        if defaults.bool(forKey: "hideCanvasTips") { defaults.set(true, forKey: CanvasTipsModel.seenKey) }
     }
 }
 

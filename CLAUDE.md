@@ -125,6 +125,7 @@ Doodlemark/
     LogoFonts.swift             (the 5 bundled logo fonts; the only ones the picker offers)
   Canvas/
     CanvasScreen.swift
+    CanvasTips.swift            (the 3 first-canvas tips: shown once, anchored to their controls)
     CanvasModel.swift           (editor state: tool, layers, pen, zoom, change → undo)
     CanvasHistory.swift         (one snapshot undo history for all four layers, 100 steps)
     HistoryUndoManager.swift    (system undo → our history; PencilKit undo off)
@@ -145,9 +146,9 @@ Doodlemark/
     PNGExporter.swift           (Shapes + Ink + Text render: thumbnails, mockups and the PNG export)
     ExportFiles.swift           (export options, file names, writes SVG/PNG to a temp folder, cleanup)
   Learn/
-    Lesson.swift                (Codable lesson + step)
-    LessonLibrary.swift         (loads bundled JSON)
-    StrokeScorer.swift          (resample, Fréchet, smoothness, stars)
+    Lesson.swift                (Codable lesson + step: name, tip, how, ink points or a shape)
+    LessonLibrary.swift         (loads + validates the bundled JSON, easy → harder)
+    StrokeScorer.swift          (resample, Fréchet, smoothness, stars, fixed feedback copy)
     ScoringConfig.swift         (thresholds)
     LearnProgressStore.swift
     LearnScreen.swift
@@ -170,14 +171,18 @@ Doodlemark/
     ExportScreen.swift          (Preview & export: mockups + export panel + share sheet)
     MockupPreview.swift         (app icon, sticker, tiny test, light & dark from the real render)
   Resources/
-    Lessons/                    (rocket, cat-badge, bolt-shield, moon-cafe, star-club .json)
+    Lessons/                    (rocket, bolt-shield, star-club, cat-badge, moon-cafe .json)
     Fonts/                      (UI: static Bricolage Grotesque 800 + Inter 400/600/700; logo: Lilita One,
                                  Bungee, Sniglet ExtraBold, Pacifico, Poppins ExtraBold; each with <Family>-OFL.txt)
     Assets.xcassets
+  Settings.bundle/              (one switch: "Show drawing tips again")
 DoodlemarkTests/
   SVGExportTests.swift          (the hard gate; images → GateOutput/, gitignored)
   TextToolTests.swift           (fonts, blocked characters, tracking/caps, typing undo, text in SVG)
   ProjectStoreTests.swift       (round trip, crash anywhere in a save → full old or new, broken projects, duplicate/delete)
+  StrokeScorerTests.swift       (stars, direction, length, wobble, determinism)
+  LessonLoaderTests.swift       (lessons parse and self-score 3★; fairness check → GateOutput/learn-calibration.txt)
+  CanvasTipsTests.swift         (shown once, skip, show again)
   ExportTests.swift             (SVG = gated exporter, PNG vs native, background, file names, no sketch, cleanup)
   AutosaveTests.swift           (debounce on a manual clock, save now, thumbnails)
   MonolineWidthTests.swift      (documents PencilKit's monoline width law)
