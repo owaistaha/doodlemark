@@ -71,10 +71,12 @@ final class ProjectAutosaver {
     }
 
     /// Writes now if anything changed, and drops a pending debounce.
-    func saveNow() {
+    /// `evenIfUnchanged`: a new project is written as it is ("Make it yours"
+    /// hands over a finished drawing that belongs in the gallery right away).
+    func saveNow(evenIfUnchanged: Bool = false) {
         cancelPending?()
         cancelPending = nil
-        guard hasUnsavedChanges else { return settle() }
+        guard hasUnsavedChanges || (evenIfUnchanged && !isOnDisk) else { return settle() }
         let project = model.project, sketch = model.sketch, ink = model.ink
         var stored = project
         stored.updatedAt = now()

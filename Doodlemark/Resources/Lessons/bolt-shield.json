@@ -1,7 +1,9 @@
 {
   "id": "bolt-shield",
   "title": "Lightning shield",
+  "shortName": "Shield",
   "teaches": "straight lines and corners",
+  "learned": "straight lines and sharp corners",
   "level": 1,
   "palette": [
     "#3D5AFE",

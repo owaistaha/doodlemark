@@ -1,7 +1,9 @@
 {
   "id": "rocket",
   "title": "Rocket in 5 strokes",
+  "shortName": "Rocket",
   "teaches": "learn curves and Mirror",
+  "learned": "smooth curves and how Mirror keeps things balanced",
   "level": 1,
   "palette": [
     "#FF5A1F",
@@ -13,7 +15,7 @@
     {
       "name": "The badge",
       "tip": "Every logo needs a home",
-      "how": "Tap the circle to drop it in. Big and simple works best.",
+      "how": "Tap Place it to drop the circle in. Big and simple works best.",
       "kind": "shape",
       "shape": {
         "kind": "circle",

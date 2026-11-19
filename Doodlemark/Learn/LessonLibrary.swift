@@ -35,6 +35,7 @@ enum LessonLibrary {
         func fail(_ why: String) throws -> Never { throw Failure.invalid(lesson.id, why) }
         let canvas = 0...CanvasViewport.canvasSide
         if lesson.palette.count != 3 { try fail("palette needs 3 colors") }
+        if lesson.shortName.isEmpty || lesson.learned.isEmpty { try fail("needs a short name and what it teaches") }
         if !(4...8).contains(lesson.steps.count) { try fail("\(lesson.steps.count) steps, PRD wants 4–8") }
         for (index, step) in lesson.steps.enumerated() {
             let label = "step \(index + 1)"

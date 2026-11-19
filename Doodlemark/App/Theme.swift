@@ -136,6 +136,25 @@ enum Theme {
         static let captionStrip: CGFloat = 52
     }
 
+    /// Learn: lesson cards, the lesson player, the complete screen.
+    enum Learn {
+        static let cardMinWidth: CGFloat = 300
+        /// Card: the picture, then title, "Easy · …" and the stars line.
+        static let cardHeight: CGFloat = Metrics.thumbnailHeight + 132
+        /// Lesson card picture: the drawing's line art fits this square.
+        static let previewSide: CGFloat = 136
+        static let previewLine: CGFloat = 4
+        static let previewDash: [CGFloat] = [5, 5]
+        static let cardStar: CGFloat = 20
+        static let resultStar: CGFloat = 34
+        static let totalStar: CGFloat = 44
+        static let doneBadge: CGFloat = 88
+        static let panelWidth: CGFloat = 400
+        static let progressBar = CGSize(width: 52, height: 8)
+        /// Body text on the ink "Logo tip" card.
+        static let onInkMuted = Theme.surface.opacity(0.82)
+    }
+
     /// The small square on a prompt card.
     static func accent(_ accent: Prompt.Accent) -> Color {
         switch accent {

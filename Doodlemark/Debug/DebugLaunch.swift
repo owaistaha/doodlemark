@@ -14,6 +14,8 @@ import os
 /// - `-traceTouches YES`: log every touch and tool change (see `TouchTrace`).
 /// - `-resetCanvasTips YES`: show the first-canvas tips again.
 /// - `-hideCanvasTips YES`: mark them seen (UI tests that aren't about tips).
+/// - `-resetLearnProgress YES`: no stars, no lesson in progress.
+/// - `-seedLearnProgress YES`: a few best scores and the rocket left at step 4.
 enum DebugLaunch {
     private static var defaults: UserDefaults { .standard }
 
@@ -28,6 +30,28 @@ enum DebugLaunch {
         if defaults.bool(forKey: "seedBrokenProject") { SampleProjects.seedBroken(into: store) }
         if defaults.bool(forKey: "resetCanvasTips") { defaults.removeObject(forKey: CanvasTipsModel.seenKey) }
         if defaults.bool(forKey: "hideCanvasTips") { defaults.set(true, forKey: CanvasTipsModel.seenKey) }
+    }
+
+    /// The Learn progress store, after the Learn flags.
+    @MainActor
+    static func learnStore() -> LearnProgressStore {
+        if defaults.bool(forKey: "resetLearnProgress") || defaults.bool(forKey: "seedLearnProgress") {
+            try? FileManager.default.removeItem(at: LearnProgressStore.defaultURL)
+        }
+        let learn = LearnProgressStore()
+        if defaults.bool(forKey: "seedLearnProgress") {
+            let lessons = Dictionary(uniqueKeysWithValues: LessonLibrary.all().map { ($0.id, $0) })
+            if let shield = lessons["bolt-shield"] { learn.recordFinished(shield, stars: 11) }
+            if let star = lessons["star-club"] { learn.recordFinished(star, stars: 9) }
+            if let rocket = lessons["rocket"] {
+                // Badge placed, body and base traced: step 4 (the fins) is next.
+                let color = PaletteSlot.second.color(in: rocket.palette)
+                let strokes = rocket.steps.prefix(3).flatMap { LessonInk.strokes(for: $0, in: rocket, color: color) }
+                learn.saveResume(rocket, LessonResume(step: 3, stars: [3, 3, 2],
+                                                      ink: PKDrawing(strokes: strokes).dataRepresentation()))
+            }
+        }
+        return learn
     }
 }
 

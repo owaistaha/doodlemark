@@ -104,8 +104,46 @@ thicker border or a weight change.
 - First launch: one dashed card with the app mark, "No logos yet", "Every
   logo starts with a doodle. Tap New logo to make your first one." and
   "New logo".
-- Learn tab (until step 8b): graduation cap in a `blueTint` circle, "Lessons
-  are coming soon".
+- Learn tab: see "Layout (Learn)" below.
+
+## Layout (Learn, design/Learn.png)
+- Same header; on Learn the right side is the stars pill ("★ 25 stars",
+  white, hairline, 56 pt) instead of "New logo".
+- "Learn to sketch" (display) and "Trace one stroke at a time. Every lesson
+  ends as a logo you can keep."
+- Cards (adaptive, ≥ 300 pt columns, 24 pt gaps, 300 pt tall): the
+  lesson's line art (every target in ink, shapes as outlines, 136 pt) on
+  `thumbBackdrop`, then the title (Inter bold 20), "Easy · learn curves and
+  Mirror" in `inkMuted`, then three stars and "Best: 13 of 15", or "New" in
+  `blueText`. Card stars = best × 3 / max, rounded. A lesson left halfway:
+  `blueTint` picture with the steps still to do dashed blue, a 2 pt
+  `pencilBlue` border and a "Continue · step 3 of 5" capsule (`pencilBlue`,
+  white text). Last: the ink "Logo tip" card (butter pill, white title,
+  white 82% body).
+
+## Layout (lesson player, design/Lesson.png)
+- Top bar: ✕ (leaves; the place is saved), the lesson title (heading); one
+  52 × 8 bar per step (done `ink`, now `pencilBlue`, to come `line`) and
+  "Step 3 of 5"; "Skip this step" (secondary) on the right.
+- Left: the canvas on `canvasBackdrop` with the hint pill under it ("Mirror
+  is on: the other side draws itself", or the dot / Place it hint).
+- Right panel (400 pt, white): "STEP 3 · THE FINS" (section label), the tip
+  (title 28), the "how" line with "blue dot" in bold `pencilBlue`. After a
+  stroke: the result card (`paper`, radius 28, hairline): 34 pt stars
+  (butter with an ink outline; empty = outline only), the title (heading),
+  the tip. At the bottom: Redo (secondary, 56 pt) + "Next step →" (tangerine,
+  56 pt; "Finish ✓" on the last step), or "Place it" on a shape step.
+
+## Layout (lesson complete, design/LessonDone.png)
+- `paper` screen, ✕ top left. Left: the drawing on a white radius-28 card
+  with the mockup shadow and an 88 pt butter check badge on its corner.
+- Right: "LESSON COMPLETE", "<Rocket> done!" (display), ★ + the total
+  (display) + "of 15 stars" (title, muted); a note in `blueText` for a new
+  best, or "Your best is still 13 of 15." after a lower retry; one row of
+  step chips (name, "3★"); "You learned … Now make it yours: add colors,
+  your name, and export it."; "Make it yours" (tangerine, full width, 56 pt);
+  "Try for 15 stars" (or "Play again" at full marks) and "Next: <lesson>"
+  (or "All lessons" after the last).
 
 ## Layout (New logo, design/NewLogo.png)
 - "‹ Gallery" (white, 56 pt), "Pick a start" on the right; "What are we

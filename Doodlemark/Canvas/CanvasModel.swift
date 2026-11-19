@@ -117,6 +117,18 @@ final class CanvasModel {
     /// focus, or another change starts, is one undo step.
     private var typing: CanvasSnapshot?
 
+    // MARK: Lesson mode (the lesson player drives these)
+
+    /// Called with each new Ink stroke exactly as drawn, before "Smooth my
+    /// lines" and Mirror: Learn scores the RAW stroke.
+    @ObservationIgnored var onNewInkStroke: ((PKStroke) -> Void)?
+    /// No drawing on Ink right now (a result card is up, or a shape step).
+    var inkLocked = false
+    /// The dashed targets on the canvas (lesson mode only).
+    var lessonGhost: LessonGhost?
+    /// Off in lesson mode: the player's Redo is the undo there.
+    var undoEnabled = true
+
     /// A project with its drawings (a loaded one, or a new blank one).
     init(project: Project, sketch: PKDrawing = PKDrawing(), ink: PKDrawing = PKDrawing()) {
         self.project = project
@@ -474,9 +486,9 @@ final class CanvasModel {
     }
 
     /// Typing that isn't recorded yet counts: Undo takes back the session.
-    var canUndo: Bool { history.canUndo || typedSomething }
+    var canUndo: Bool { undoEnabled && (history.canUndo || typedSomething) }
     /// Undo would record the typing first, which clears the redo steps.
-    var canRedo: Bool { history.canRedo && !typedSomething }
+    var canRedo: Bool { undoEnabled && history.canRedo && !typedSomething }
     private var typedSomething: Bool { typing.map { $0.text != project.text } ?? false }
 
     /// A finger or Pencil went down with a tool. Everything until `endToolUse`
@@ -512,16 +524,28 @@ final class CanvasModel {
         }
         ink = result
         record(before)
+        if drawing.strokes.count == before.ink.strokes.count + 1, let raw = drawing.strokes.last {
+            onNewInkStroke?(raw)
+        }
         return result
     }
 
+    /// Lesson mode: puts in a whole new Ink drawing (Redo, Skip, resume).
+    /// Not an undo step; undo is off in lesson mode.
+    func replaceInk(_ drawing: PKDrawing) {
+        ink = drawing
+        restoreRequest += 1
+    }
+
     func undo() {
+        guard undoEnabled else { return }
         endTyping()
         guard let previous = history.undo(current: snapshot) else { return }
         restore(previous)
     }
 
     func redo() {
+        guard undoEnabled else { return }
         endTyping()
         guard let next = history.redo(current: snapshot) else { return }
         restore(next)

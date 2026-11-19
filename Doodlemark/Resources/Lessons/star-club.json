@@ -1,7 +1,9 @@
 {
   "id": "star-club",
   "title": "Star club badge",
+  "shortName": "Star badge",
   "teaches": "circles that close",
+  "learned": "big round curves and a star made of points",
   "level": 1,
   "palette": [
     "#FF5A1F",

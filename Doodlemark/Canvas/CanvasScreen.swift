@@ -196,7 +196,8 @@ extension View {
     }
 }
 
-private struct BarIconButton: View {
+/// Square top-bar button (canvas, lesson player).
+struct BarIconButton: View {
     let symbol: String
     let label: String
     let action: () -> Void
@@ -392,8 +393,9 @@ private struct ZoomPill: View {
     }
 }
 
-/// Floating dark pill that says what the current tool does.
-private struct HintPill: View {
+/// Floating dark pill that says what the current tool does (or, in a
+/// lesson, what to do).
+struct HintPill: View {
     let text: String
 
     var body: some View {

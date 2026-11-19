@@ -142,7 +142,10 @@ Five lessons, in this order (`LessonLibrary.ids`): `rocket`, `bolt-shield`,
 short `name` ("The fins"), the `tip` (the big line, "Give it fins so it
 looks like it's flying") and `how` ("Start on the blue dot…"), as in
 design/Lesson.png; lessons have `teaches` for the card ("learn curves and
-Mirror"). A shape step has `"shape": {"kind", "center", "size", "rotation",
+Mirror"), and `shortName` ("Rocket" → "Rocket done!") and `learned`
+("smooth curves and how Mirror keeps things balanced") for the complete
+screen. Every step is worth 3 stars: a traced step gets 0–3, a shape step
+3 when it's placed (0 if skipped), so "Rocket in 5 strokes" is out of 15. A shape step has `"shape": {"kind", "center", "size", "rotation",
 "fill"}` (fill = palette slot). `LessonLibrary.validate` checks: 3 colors,
 4–8 steps, every point inside 0…1024, Mirror lessons only left of x = 512,
 ink strokes at least 40 pt long. Example (trimmed):
@@ -150,14 +153,16 @@ ink strokes at least 40 pt long. Example (trimmed):
 {
   "id": "rocket",
   "title": "Rocket in 5 strokes",
+  "shortName": "Rocket",
   "teaches": "learn curves and Mirror",
+  "learned": "smooth curves and how Mirror keeps things balanced",
   "level": 1,
   "palette": ["#FF5A1F", "#1C1B22", "#FFC93C"],
   "mirror": true,
   "steps": [
     {
       "name": "The badge", "tip": "Every logo needs a home",
-      "how": "Tap the circle to drop it in. Big and simple works best.",
+      "how": "Tap Place it to drop the circle in. Big and simple works best.",
       "kind": "shape",
       "shape": {"kind": "circle", "center": [512, 476], "size": 680, "rotation": 0, "fill": 0}
     },
@@ -221,24 +226,61 @@ never 3★, 70 pt off → redo, and sloppy / way-off redos are told about
 wobble or the line, not length (≤ 20% length tips). `wobbleLimit` = 0.25 rad
 came from that run.
 
-### Lesson player
-- The same canvas screen in "lesson mode": the **ghost layer** (target strokes,
-  `pencilBlue` at 25% opacity, dashed) is a SwiftUI overlay above Sketch.
-  Only the current step is fully visible; done steps are solid ink.
-- Start dot + arrow = a small overlay at `points[0]`, pointing along the first segment.
-- On `canvasViewDrawingDidChange` with a new stroke on Ink → score it →
-  show the result card. **Redo** removes that stroke; **Next** keeps it.
-- Tools other than Ink are hidden in lesson mode (fewer ways to get lost).
+### Lesson player (step 8b, `Learn/LessonSession.swift`, `LessonPlayer.swift`)
+- `LessonSession` owns a `CanvasModel` in lesson mode: the project has the
+  lesson palette and `symmetryOn = lesson.mirror`, the tool is Ink (the only
+  one; the player has no tool rail), the Line size is the step's `width`,
+  and undo is off (`undoEnabled = false`: Redo is the undo here, and a
+  two-finger tap must not take back a kept step). The same `PencilCanvas`
+  stack draws it, so zoom, Mirror and smoothing work exactly as in the editor.
+- **Ghost** (`LessonGhostView`, a UIView in the canvas stack drawn through
+  the shared viewport, like the mirror guide; not a SwiftUI overlay, so it
+  can't drift at any zoom): the current step dashed in `pencilBlue` (both
+  halves in a Mirror lesson), later steps dashed at 25%, the start dot with
+  a white ring and an arrow along the first segment. It sits above Ink so
+  the dot and the line stay visible on the kid's own strokes. Finished steps
+  aren't ghosted: they're real Ink strokes and placed shapes.
+- `CanvasModel.onNewInkStroke` hands over each new Ink stroke **as drawn**,
+  before "Smooth my lines" and Mirror. The session scores that RAW stroke;
+  the canvas shows the smoothed one if Smooth is on. In a Mirror lesson the
+  mirrored copy of the raw stroke is scored too and the better one counts,
+  so a kid who drew the right half isn't told off.
+- After a stroke the Ink canvas is locked (`inkLocked`) and the result card
+  shows the stars (VoiceOver "2 of 3 stars") and the fixed feedback copy.
+  **Redo** removes the stroke and its mirrored copy; **Next** keeps them.
+- Shape steps: drawing is locked, **Place it** adds the shape (3 stars).
+- **Skip this step**: 0 stars; an ink step's target is drawn in as monoline
+  strokes (`LessonInk`, the step's width, mirrored copy included), a shape
+  step's shape is placed, so the picture still comes out whole.
 
-### Progress
-`Documents/learn.json`: `{ "<lessonId>": { "bestStars": 12, "maxStars": 15, "completedAt": "…" } }`.
-Written atomically, like projects.
+### Progress (`Learn/LearnProgressStore.swift`)
+`Documents/learn.json`, written atomically with sorted keys:
+`{ "<lessonId>": { "bestStars": 12, "maxStars": 15, "completedAt": "…", "inProgress": {…} } }`.
+`bestStars` only goes up (`recordFinished` keeps the old best and its date
+if a retry is worse). `inProgress` = `{ step, stars, ink }`: the next step,
+the stars so far and the kept strokes (`PKDrawing` data; Ink is set back
+to monoline on load, RISKS #11). Shapes aren't stored: every shape step
+before `step` was placed, so they're rebuilt. It's saved after every
+finished step and when the player closes or the app goes to the
+background; a pending (scored, not kept) stroke isn't. A save that doesn't
+fit the lesson (step out of range, wrong number of stars) is ignored. A
+missing or unreadable file is an empty start. "Try for N stars" opens the
+lesson fresh and clears `inProgress`.
 
 ### "Make it yours"
-Create a new `Project` named after the lesson, with the lesson palette and
-`symmetryOn = lesson.mirror`. Ink = the user's kept strokes as a `PKDrawing`
-(mirrored copies included), Shapes = the lesson's shape steps. Then open it in
-normal editing mode.
+A new `Project` named after the lesson, with the lesson palette,
+`symmetryOn = lesson.mirror`, Grid off, no text. Ink = the kept strokes
+(mirrored copies included), Shapes = the placed shape steps (new ids). It's
+written right away (`ProjectAutosaver.saveNow(evenIfUnchanged: true)`), so
+it's in My logos even if nothing else changes, then opens in the editor.
+
+### UI tests that trace a lesson
+XCUITest's public drag API only draws straight lines. `DoodlemarkUITests/
+TouchSynthesis.swift` draws any path with XCTest's own event records
+(`XCPointerEventPath`, `XCSynthesizedEventRecord`), looked up at run time;
+test target only, never in the app. They read points in **portrait** screen
+space whatever the orientation, so landscape points are turned first. The
+DEBUG `debugLessonTarget` element gives the current target in canvas space.
 
 ## First-canvas tips (step 8)
 `Canvas/CanvasTips.swift`. `CanvasTipsModel` decides (UserDefaults

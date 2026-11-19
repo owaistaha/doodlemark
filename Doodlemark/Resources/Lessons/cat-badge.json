@@ -1,7 +1,9 @@
 {
   "id": "cat-badge",
   "title": "Cat face badge",
+  "shortName": "Cat badge",
   "teaches": "faces from simple shapes",
+  "learned": "how a few simple marks make a face",
   "level": 2,
   "palette": [
     "#FF4F9A",
@@ -13,7 +15,7 @@
     {
       "name": "The badge",
       "tip": "Give the cat a background",
-      "how": "Tap the circle to drop it in.",
+      "how": "Tap Place it to drop the circle in.",
       "kind": "shape",
       "shape": {
         "kind": "circle",

@@ -156,8 +156,7 @@ final class GalleryUITests: XCTestCase {
         XCTAssertEqual(cards.count, count, "only the broken one went")
 
         app.buttons["tab-learn"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["learnComingSoon"].waitForExistence(timeout: 3))
-        keepScreenshot("learn-coming-soon")
+        XCTAssertTrue(app.buttons["lesson-rocket"].waitForExistence(timeout: 3), "the lessons (LearnUITests covers them)")
         app.buttons["tab-myLogos"].tap()
 
         // A chip starts a new logo with that prompt straight away.

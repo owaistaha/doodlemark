@@ -11,6 +11,8 @@ struct PrimaryButton: View {
     var height: CGFloat = Theme.Metrics.barButton
     /// The symbol after the title ("Start drawing →").
     var symbolTrailing = false
+    /// As wide as its container ("Make it yours", the lesson panel).
+    var fullWidth = false
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
@@ -18,12 +20,13 @@ struct PrimaryButton: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 if !symbolTrailing { Image(systemName: symbol) }
-                Text(title)
+                Text(title).lineLimit(1)
                 if symbolTrailing { Image(systemName: symbol) }
             }
                 .font(height > Theme.Metrics.barButton ? Theme.cardTitle : Theme.bodyStrong)
                 .foregroundStyle(Theme.ink)
                 .padding(.horizontal, height > Theme.Metrics.barButton ? 28 : 20)
+                .frame(maxWidth: fullWidth ? .infinity : nil)
                 .frame(height: height)
                 .background(Theme.tangerine, in: RoundedRectangle(cornerRadius: Theme.Radius.button))
                 .opacity(isEnabled ? 1 : 0.45)
@@ -37,6 +40,8 @@ struct SecondaryButton: View {
     let title: String
     var symbol: String?
     var compact = false
+    /// Not compact: 48 in bars, 56 next to a big primary button.
+    var height: CGFloat = Theme.Metrics.barButton
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
@@ -48,7 +53,7 @@ struct SecondaryButton: View {
             .font(compact ? Theme.labelStrong : Theme.bodyStrong)
             .foregroundStyle(isEnabled ? Theme.ink : Theme.lineStrong)
             .padding(.horizontal, compact ? 12 : 16)
-            .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 36 : Theme.Metrics.barButton)
+            .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 36 : height)
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
             .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small)
                 .strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))

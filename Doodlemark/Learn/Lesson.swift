@@ -9,8 +9,12 @@ struct Lesson: Codable, Identifiable, Equatable, Sendable {
     var id: String
     /// "Rocket in 5 strokes".
     var title: String
+    /// For the complete screen: "Rocket" → "Rocket done!".
+    var shortName: String
     /// What it teaches, for the card: "learn curves and Mirror".
     var teaches: String
+    /// For the complete screen: "You learned <learned>."
+    var learned: String
     /// 1 = Easy, 2 = Medium. Lessons are listed easy → harder.
     var level: Int
     var palette: [HexColor]
@@ -24,8 +28,9 @@ struct Lesson: Codable, Identifiable, Equatable, Sendable {
     /// The steps the user traces (the ones that get stars).
     var inkSteps: [LessonStep] { steps.filter { $0.kind == .ink } }
 
-    /// 3 stars for every traced step.
-    var maxStars: Int { inkSteps.count * 3 }
+    /// 3 stars for every step: a traced line gets 0–3, a shape step gets 3
+    /// when it's placed (0 if skipped). "Rocket in 5 strokes" → 15.
+    var maxStars: Int { steps.count * 3 }
 }
 
 struct LessonStep: Codable, Equatable, Sendable {

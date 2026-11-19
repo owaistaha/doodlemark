@@ -31,6 +31,8 @@ final class AppModel {
         case gallery
         case newLogo
         case canvas(CanvasSession)
+        /// The lesson player, then its complete screen.
+        case lesson(LessonSession)
     }
 
     enum GalleryTab: Hashable { case myLogos, learn }
@@ -39,9 +41,14 @@ final class AppModel {
     var tab: GalleryTab = .myLogos
     @ObservationIgnored let store: ProjectStore
     let gallery: GalleryModel
+    let learn: LearnProgressStore
+    /// The bundled lessons, easy → harder.
+    @ObservationIgnored let lessons: [Lesson]
 
-    init(store: ProjectStore) {
+    init(store: ProjectStore, learn: LearnProgressStore = LearnProgressStore(), lessons: [Lesson] = LessonLibrary.all()) {
         self.store = store
+        self.learn = learn
+        self.lessons = lessons
         gallery = GalleryModel(store: store)
     }
 
@@ -65,6 +72,37 @@ final class AppModel {
         screen = .canvas(CanvasSession(model: model, store: store, isOnDisk: true))
     }
 
+    // MARK: Learn
+
+    /// Opens a lesson where it was left, or from the start (`fresh`: "Try for N stars").
+    func openLesson(_ lesson: Lesson, fresh: Bool = false) {
+        saveNow()
+        screen = .lesson(LessonSession(lesson: lesson, progress: learn, resume: !fresh))
+    }
+
+    /// The lesson after `lesson` in the list, if any.
+    func lesson(after lesson: Lesson) -> Lesson? {
+        lessons.firstIndex { $0.id == lesson.id }.flatMap { lessons.indices.contains($0 + 1) ? lessons[$0 + 1] : nil }
+    }
+
+    /// Out of a lesson (✕, or "All lessons"): where the kid got to is saved.
+    func closeLesson() {
+        saveNow()
+        tab = .learn
+        showGallery()
+    }
+
+    /// "Make it yours": the lesson's drawing becomes a new project, saved
+    /// right away (so it's in My logos even if nothing else changes), and
+    /// opens in the editor.
+    func makeItYours(from lesson: LessonSession) {
+        let made = lesson.makeItYours()
+        let session = CanvasSession(model: CanvasModel(project: made.project, ink: made.ink), store: store, isOnDisk: false)
+        session.autosaver.saveNow(evenIfUnchanged: true)
+        tab = .myLogos
+        screen = .canvas(session)
+    }
+
     /// Back from the canvas: save first, then the gallery shows the new thumbnail.
     func closeCanvas() {
         saveNow()
@@ -73,9 +111,14 @@ final class AppModel {
 
     /// Leaving the canvas or the app: write what's pending right away.
     func saveNow() {
-        if case .canvas(let session) = screen {
+        switch screen {
+        case .canvas(let session):
             session.model.endTyping()
             session.autosaver.saveNow()
+        case .lesson(let session):
+            session.saveForLater()
+        default:
+            break
         }
     }
 }
@@ -90,7 +133,12 @@ extension AppModel {
         #if DEBUG
         DebugLaunch.prepare(store)
         #endif
-        let app = AppModel(store: store)
+        #if DEBUG
+        let learn = DebugLaunch.learnStore()
+        #else
+        let learn = LearnProgressStore()
+        #endif
+        let app = AppModel(store: store, learn: learn)
         #if DEBUG
         if DebugLaunch.opensNewLogo { app.startNewProject(prompt: nil) }
         TouchTrace.install()
@@ -112,6 +160,9 @@ struct RootView: View {
                 NewLogoSheet(onBack: { app.showGallery() }, onStart: { app.startNewProject(prompt: $0) })
             case .canvas(let session):
                 CanvasScreen(model: session.model, autosaver: session.autosaver, onBack: { app.closeCanvas() })
+                    .id(session.id)
+            case .lesson(let session):
+                LessonScreen(session: session, app: app)
                     .id(session.id)
             }
         }

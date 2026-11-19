@@ -17,6 +17,10 @@ struct CanvasStackConfig: Equatable {
     /// Path bounds of the selected shape while the Shapes tool is on (canvas space).
     var selection: CGRect?
     var snapGuides: SnapGuides
+    /// Lesson mode: no drawing on Ink right now.
+    var inkLocked = false
+    /// Lesson mode: the dashed targets, start dot and arrow.
+    var ghost: LessonGhost?
 }
 
 extension CanvasModel {
@@ -26,7 +30,7 @@ extension CanvasModel {
                           hiddenLayers: hiddenLayers, pencilOnly: pencilOnly, gridOn: gridOn,
                           mirrorOn: mirrorOn, fitRequest: fitRequest, restoreRequest: restoreRequest,
                           selection: hiddenLayers.contains(activeLayer) ? nil : pickedItem?.bounds,
-                          snapGuides: snapGuides)
+                          snapGuides: snapGuides, inkLocked: inkLocked, ghost: lessonGhost)
     }
 }
 
@@ -90,6 +94,7 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
     private let shapesHost: UIHostingController<ShapesLayer>
     private let textHost: UIHostingController<TextLayer>
     private let mirrorGuide = MirrorGuideView()
+    private let ghostView = LessonGhostView()
     private let selectionView = ShapeSelectionView()
     private let pan = UIPanGestureRecognizer()
     private let pinch = UIPinchGestureRecognizer()
@@ -168,13 +173,17 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
         textHost.safeAreaRegions = []
         gridView.isUserInteractionEnabled = false
         mirrorGuide.isUserInteractionEnabled = false
+        ghostView.isUserInteractionEnabled = false
         selectionView.isUserInteractionEnabled = false
 
-        // Bottom to top: grid, Sketch, Shapes, Ink, Text (PRD layer order), mirror guide.
+        // Bottom to top: grid, Sketch, Shapes, Ink, lesson ghost, Text (PRD
+        // layer order), mirror guide. The ghost is over Ink so the start dot
+        // and the dashed line stay visible on the kid's own strokes.
         addSubview(gridView)
         addSubview(sketchCanvas)
         addSubview(shapesHost.view)
         addSubview(inkCanvas)
+        addSubview(ghostView)
         addSubview(textHost.view)
         addSubview(mirrorGuide)
         addSubview(selectionView)
@@ -259,13 +268,15 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
         textHost.view.isHidden = new.hiddenLayers.contains(.text)
         gridView.isHidden = !new.gridOn
         mirrorGuide.isHidden = !new.mirrorOn
+        ghostView.isHidden = new.ghost == nil
+        ghostView.ghost = new.ghost
         selectionView.selection = new.selection
         selectionView.guides = new.snapGuides
 
         // One-finger touches go to the active layer only. Shapes and Text get
         // their gestures in step 5; until then they take no touches.
         sketchCanvas.isUserInteractionEnabled = new.activeLayer == .sketch && !sketchCanvas.isHidden
-        inkCanvas.isUserInteractionEnabled = new.activeLayer == .ink && !inkCanvas.isHidden
+        inkCanvas.isUserInteractionEnabled = new.activeLayer == .ink && !inkCanvas.isHidden && !new.inkLocked
         shapesHost.view.isUserInteractionEnabled = false
         textHost.view.isUserInteractionEnabled = false
 
@@ -285,7 +296,7 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
     override func layoutSubviews() {
         super.layoutSubviews()
         guard bounds.width > 0 else { return }
-        for view in [gridView, sketchCanvas, inkCanvas, mirrorGuide, selectionView] as [UIView] { view.frame = bounds }
+        for view in [gridView, sketchCanvas, inkCanvas, ghostView, mirrorGuide, selectionView] as [UIView] { view.frame = bounds }
         if abs(bounds.width - side) > 0.001 {
             // Keep the same zoom factor and centre when the square resizes (rotation).
             let factor = side > 0 ? viewport.zoomFactor(viewSide: side) : 1
@@ -435,6 +446,7 @@ final class CanvasStackView: UIView, PKCanvasViewDelegate, UIGestureRecognizerDe
         shown = applied
         gridView.viewport = applied
         mirrorGuide.viewport = applied
+        ghostView.viewport = applied
         selectionView.viewport = applied
         // Report the zoom after the current SwiftUI update, never during it.
         let factor = applied.zoomFactor(viewSide: side)

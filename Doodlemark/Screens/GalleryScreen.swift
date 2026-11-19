@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The home screen (design/Gallery.png): "My logos" with the cards grid,
-/// newest edited first, and the Learn tab (step 8b; a placeholder for now).
+/// newest edited first, and the Learn tab (`LearnTab`).
 struct GalleryScreen: View {
     @Bindable var app: AppModel
     @State private var renaming: ProjectSummary?
@@ -13,10 +13,10 @@ struct GalleryScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
-                GalleryHeader(tab: $app.tab, onNewLogo: { app.showNewLogo() })
+                GalleryHeader(tab: $app.tab, starTotal: app.learn.totalStars, onNewLogo: { app.showNewLogo() })
                 switch app.tab {
                 case .myLogos: myLogos
-                case .learn: LearnComingSoon()
+                case .learn: LearnTab(app: app)
                 }
                 #if DEBUG
                 DebugLinks()
@@ -83,6 +83,8 @@ struct GalleryScreen: View {
 
 private struct GalleryHeader: View {
     @Binding var tab: AppModel.GalleryTab
+    /// Learn tab: the stars pill instead of "New logo" (design/Learn.png).
+    let starTotal: Int
     let onNewLogo: () -> Void
 
     var body: some View {
@@ -97,9 +99,15 @@ private struct GalleryHeader: View {
 
             TabSwitch(tab: $tab)
 
-            PrimaryButton(title: "New logo", symbol: "plus", height: Theme.Metrics.bigButton, action: onNewLogo)
-                .accessibilityIdentifier("newLogo")
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            Group {
+                if tab == .learn {
+                    StarTotalPill(total: starTotal)
+                } else {
+                    PrimaryButton(title: "New logo", symbol: "plus", height: Theme.Metrics.bigButton, action: onNewLogo)
+                        .accessibilityIdentifier("newLogo")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }
@@ -338,7 +346,7 @@ private struct ThumbnailImage: View {
     }
 }
 
-// MARK: - Empty and Learn
+// MARK: - Empty
 
 /// First launch: nothing saved yet.
 private struct EmptyGallery: View {
@@ -361,25 +369,5 @@ private struct EmptyGallery: View {
             .strokeBorder(Theme.lineStrong, style: StrokeStyle(lineWidth: Theme.Metrics.dashedBorder, dash: [6, 6])))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("emptyGallery")
-    }
-}
-
-private struct LearnComingSoon: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "graduationcap")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(Theme.pencilBlue)
-                .frame(width: 88, height: 88)
-                .background(Theme.blueTint, in: Circle())
-            Text("Lessons are coming soon").font(Theme.title)
-            Text("Trace along, stroke by stroke, and learn to draw logos.")
-                .font(Theme.body).foregroundStyle(Theme.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 96)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("learnComingSoon")
     }
 }

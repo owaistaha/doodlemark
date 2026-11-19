@@ -312,7 +312,7 @@ blank canvas at 100%.
 
 ## Step 8b (part 1): scoring thresholds
 
-62. [ ] **Finger calibration (needs the lesson player, 8b part 2).** Trace
+62. [ ] **Finger calibration.** Trace
     each lesson's steps with a finger: once carefully, once at normal
     speed, once fast and sloppy. Note the stars and the tip each time.
     *Expected:* careful = 3 stars, normal = mostly 2–3 and never "Almost!
@@ -320,3 +320,44 @@ blank canvas at 100%.
     raise `ScoringConfig.wobbleLimit` (now 0.25); if sloppy lines get 3
     stars, lower the distance thresholds. The simulator check is in
     `DoodlemarkTests/GateOutput/learn-calibration.txt`.
+
+## Step 8b (part 2): Learn tab, lesson player, lesson complete
+
+63. [ ] **A whole lesson with a finger.** Learn → Rocket in 5 strokes. Place
+    the badge, then trace each step starting on the blue dot.
+    *Expected:* the dashed line, dot and arrow sit exactly where the stroke
+    should go at any zoom (pinch in on the fins, too); the mirrored half
+    appears as you lift; the result card shows within a moment of lifting.
+64. [ ] **Kind feedback.** Draw one step carefully, one quickly, one way off
+    the line.
+    *Expected:* careful = 3 stars "Spot on"; quick = 2 stars with a tip;
+    way off = "Almost! Try once more", never "failed" or "wrong". Redo takes
+    the line (and its mirrored half) away; nothing can be drawn while the
+    card is up.
+65. [ ] **Raw stroke scored, smooth line shown.** With Smooth my lines on,
+    draw a deliberately shaky line on the body.
+    *Expected:* the canvas shows a smooth line, but the card still mentions
+    wobble ("Nice shape!" or fewer stars).
+66. [ ] **Skip.** Tap "Skip this step" on a traced step and on the badge.
+    *Expected:* the line (both halves) or the shape is drawn in, the step
+    shows 0 stars on the complete screen.
+67. [ ] **Pick up where you left off.** Leave the rocket at step 3 with ✕;
+    then force-quit (app switcher) and reopen.
+    *Expected:* the card says "Continue · step 3 of 5"; tapping it shows
+    the same kept lines and badge, on step 3.
+68. [ ] **Best never drops.** Finish a lesson, then "Try for 15 stars" and
+    skip every step.
+    *Expected:* the complete screen says "Your best is still N of 15"; the
+    card and the header total keep the old best.
+69. [ ] **Make it yours.** On the complete screen tap Make it yours, add a
+    name, export SVG.
+    *Expected:* the editor opens on "Rocket in 5 strokes" with the lesson's
+    colors, Mirror on, the lines on Ink and the badge as a shape (movable);
+    back in My logos it's a card; the SVG in Safari matches the canvas.
+70. [ ] **VoiceOver.** Turn on VoiceOver in the player and on the complete
+    screen.
+    *Expected:* stars read as "2 of 3 stars"; the progress reads "Step 3 of
+    5"; each step chip reads "The fins, 2 of 3 stars"; the total reads
+    "13 of 15 stars".
+71. [ ] **Pencil.** Repeat one lesson with an Apple Pencil or stylus.
+    *Expected:* same stars for the same care; nothing needs pressure or tilt.

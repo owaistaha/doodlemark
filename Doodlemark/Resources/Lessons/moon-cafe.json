@@ -1,7 +1,9 @@
 {
   "id": "moon-cafe",
   "title": "Moon caf\u00e9",
+  "shortName": "Moon caf\u00e9",
   "teaches": "using empty space",
+  "learned": "how empty space can draw a shape too",
   "level": 2,
   "palette": [
     "#3D5AFE",
@@ -13,7 +15,7 @@
     {
       "name": "The tile",
       "tip": "Start with a tile",
-      "how": "Tap the rounded square to drop it in. The moon goes inside it.",
+      "how": "Tap Place it to drop the tile in. The moon goes inside it.",
       "kind": "shape",
       "shape": {
         "kind": "roundedSquare",

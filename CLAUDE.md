@@ -146,12 +146,14 @@ Doodlemark/
     PNGExporter.swift           (Shapes + Ink + Text render: thumbnails, mockups and the PNG export)
     ExportFiles.swift           (export options, file names, writes SVG/PNG to a temp folder, cleanup)
   Learn/
-    Lesson.swift                (Codable lesson + step: name, tip, how, ink points or a shape)
+    Lesson.swift                (Codable lesson + step: name, tip, how, ink points or a shape; 3 stars a step)
     LessonLibrary.swift         (loads + validates the bundled JSON, easy → harder)
     StrokeScorer.swift          (resample, Fréchet, smoothness, stars, fixed feedback copy)
     ScoringConfig.swift         (thresholds)
-    LearnProgressStore.swift
-    LearnScreen.swift
+    LearnProgressStore.swift    (Documents/learn.json: best stars, never lowered; where a lesson was left)
+    LessonSession.swift         (one play: steps, raw-stroke scoring, Redo/Next/Skip/Place it, resume, Make it yours)
+    LessonGhost.swift           (dashed targets, start dot + arrow in the canvas stack; targets as Ink strokes)
+    LearnScreen.swift           (Learn tab: lesson cards with line-art previews, stars pill, logo tip)
     LessonPlayer.swift
     LessonCompleteScreen.swift
   Storage/
@@ -162,7 +164,7 @@ Doodlemark/
     ExportDebugScreen.swift     (DEBUG builds only: bare Ink canvas + SVG preview + share)
     CanvasSpikeScreen.swift     (DEBUG builds only: step 4a mirror-undo + routing spike)
     DebugLinks.swift            (DEBUG builds only: links to the two screens above)
-    DebugLaunch.swift           (DEBUG builds only: -resetProjects, -seedSampleProjects, -openNewLogo …)
+    DebugLaunch.swift           (DEBUG builds only: -resetProjects, -seedSampleProjects, -openNewLogo, -resetLearnProgress …)
   Screens/
     GalleryScreen.swift
     GalleryModel.swift          (gallery state and actions, "Edited …" labels)
@@ -182,13 +184,15 @@ DoodlemarkTests/
   ProjectStoreTests.swift       (round trip, crash anywhere in a save → full old or new, broken projects, duplicate/delete)
   StrokeScorerTests.swift       (stars, direction, length, wobble, determinism)
   LessonLoaderTests.swift       (lessons parse and self-score 3★; fairness check → GateOutput/learn-calibration.txt)
+  LearnProgressTests.swift      (learn.json round trip, best never drops, resume, raw vs smoothed, Skip, Make it yours saves + exports)
   CanvasTipsTests.swift         (shown once, skip, show again)
   ExportTests.swift             (SVG = gated exporter, PNG vs native, background, file names, no sketch, cleanup)
   AutosaveTests.swift           (debounce on a manual clock, save now, thumbnails)
   MonolineWidthTests.swift      (documents PencilKit's monoline width law)
   Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
   Snapshots/                    (byte-exact expected SVGs)
-DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas, gallery + relaunch)
+DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas, gallery + relaunch,
+                                 the whole rocket lesson traced along its curves via TouchSynthesis.swift)
 Config/
   Base.xcconfig                 (committed; optionally includes ../Local.xcconfig)
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)
