@@ -82,6 +82,29 @@ final class TextToolTests: XCTestCase {
         XCTAssertNil(model.textMessage, "the note goes away once typing works again")
     }
 
+    /// Typing is never echoed back into the field (a fast keystroke could be
+    /// overwritten); only undo, redo and Delete text replace what it shows.
+    func testOnlyNonTypingChangesReplaceTheFieldText() {
+        let model = CanvasModel(project: .blank())
+        model.typeText("Pizza")
+        model.typeText("Pizza Rocket")
+        XCTAssertEqual(model.textReplaced, 0, "typing")
+        model.endTyping()
+        model.setTextFont(LogoFonts.all.first { $0.postScriptName != model.textFont }!)
+        XCTAssertEqual(model.textString, "Pizza Rocket")
+        XCTAssertEqual(model.textReplaced, 0, "a font change keeps the string")
+        model.undo()                                    // the font
+        XCTAssertEqual(model.textReplaced, 0)
+        model.undo()                                    // the typing
+        XCTAssertEqual(model.textString, "")
+        XCTAssertEqual(model.textReplaced, 1)
+        model.redo()
+        XCTAssertEqual(model.textString, "Pizza Rocket")
+        XCTAssertEqual(model.textReplaced, 2)
+        model.deleteText()
+        XCTAssertEqual(model.textReplaced, 3)
+    }
+
     func testAtMostTwentyFourCharacters() {
         let model = textModel()
         let long = String(repeating: "Ab", count: 15)

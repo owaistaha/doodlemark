@@ -30,6 +30,15 @@ enum SVGExporter {
     static let cornerAngle: CGFloat = .pi / 4
     /// A stroke shorter than this is a tap and exports as a round dot.
     static let dotLength: CGFloat = 0.5
+    /// After RDP, runs of points closer together than this (canvas points)
+    /// are merged: at a sharp corner PencilKit's spline makes a tiny curl and
+    /// RDP keeps 3–5 points in it, 1.5–2 pt apart (seen in the step 7 export).
+    /// They're under the round join anyway.
+    static let mergeChord: CGFloat = 3
+    /// Inside such a run, points are dropped only if they're this close to
+    /// the simpler path (RDP elsewhere uses 0.25), so a real tiny loop or
+    /// curve is never flattened.
+    static let mergeTolerance: CGFloat = 0.75
     /// PencilKit draws a monoline stroke `slope · w + offset` points thick, where
     /// `w` is `PKStrokePoint.size.width`. It's an affine law, not a ratio:
     /// measured 4 → 4, 8 → 12, 16 → 28, 32 → 60, and w ≤ 2 draws nothing.
@@ -116,7 +125,7 @@ enum SVGExporter {
             // a lone "M" would render nothing.
             d = "M\(pair(first)) L\(pair(first))"
         } else {
-            d = smoothPathData(simplify(points, tolerance: simplifyTolerance))
+            d = smoothPathData(mergeTinySegments(simplify(points, tolerance: simplifyTolerance)))
         }
 
         let (color, alpha) = inkColor(stroke.ink.color)
@@ -232,6 +241,32 @@ enum SVGExporter {
             }
         }
         return keep.indices.filter { keep[$0] }
+    }
+
+    /// Merges each run of 2+ chords shorter than `mergeChord` (the curl
+    /// PencilKit's spline makes at a sharp corner) by simplifying just that
+    /// run at `mergeTolerance`. The run's two end points, where the long legs
+    /// attach, never move, so the legs stay exactly where they were and only
+    /// the curl's tip can move, by at most the tolerance. (Merging a run into
+    /// one corner point was tried first: it moves the legs' end, which tilts
+    /// the whole leg, and the gate's worst tile went from 1% to 19–23%.)
+    static func mergeTinySegments(_ points: [CGPoint], chord: CGFloat = mergeChord,
+                                  tolerance: CGFloat = mergeTolerance) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+        var result: [CGPoint] = []
+        var i = 0
+        while i < points.count {
+            var end = i
+            while end + 1 < points.count, distance(points[end], points[end + 1]) < chord { end += 1 }
+            if end - i >= 2 {
+                // RDP keeps both ends. The last one starts the next pass, so leave it off here.
+                result += simplify(Array(points[i...end]), tolerance: tolerance).dropLast()
+            } else {
+                result += points[i..<max(end, i + 1)]
+            }
+            i = max(end, i + 1)
+        }
+        return result
     }
 
     // MARK: - CGPath → SVG path data

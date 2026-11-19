@@ -361,3 +361,29 @@ blank canvas at 100%.
     "13 of 15 stars".
 71. [ ] **Pencil.** Repeat one lesson with an Apple Pencil or stylus.
     *Expected:* same stars for the same care; nothing needs pressure or tilt.
+
+## Step 9: CV polish
+
+72. [ ] **App icon.** Install on the iPad and look at the home screen,
+    Spotlight and Settings.
+    *Expected:* the ink-black rounded square with the tangerine squiggle
+    (same as the mark on My logos), sharp at every size, no white edge or
+    black corners.
+73. [ ] **iPad only.** Check the App Store / TestFlight build info or Xcode's
+    General tab.
+    *Expected:* iPad is the only supported device (UIDeviceFamily = 2); the
+    app doesn't offer itself on an iPhone.
+74. [ ] **Corners in the SVG.** Ink a square-ish shape with sharp corners
+    with a finger (rocket body, bolt), export SVG, open in Safari and zoom in
+    on the corners.
+    *Expected:* corners look like the canvas (sharp point inside a round
+    join), no tiny loop or kink, no line shifted next to the corner.
+75. [ ] **Fast typing.** Type a logo name quickly on the on-screen keyboard
+    (and a hardware keyboard if you have one), then undo once.
+    *Expected:* every letter you typed is there, none dropped; undo removes
+    the typing; the field shows what's on the canvas.
+76. [ ] **Release build has no debug UI.** Install a Release (Archive /
+    TestFlight) build.
+    *Expected:* no "Debug" links on My logos, no export-debug or spike
+    screens, no hidden labels read out by VoiceOver on the canvas or in
+    lessons.

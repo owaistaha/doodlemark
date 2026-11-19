@@ -39,8 +39,6 @@ final class CanvasTipsModel {
         self.defaults = defaults
     }
 
-    var isShowing: Bool { current != nil }
-
     /// On opening a canvas: the first tip, if the tips haven't been seen
     /// (or Settings asked to see them again).
     func startIfNeeded() {

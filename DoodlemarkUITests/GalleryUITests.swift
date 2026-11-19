@@ -38,8 +38,7 @@ final class GalleryUITests: XCTestCase {
         app.buttons["add-star"].tap()
         app.buttons["tool-text"].tap()
         let field = app.textFields["textField"]
-        field.tap()
-        field.typeText("Pizza Rocket")
+        field.typeWhenReady("Pizza Rocket", in: app, expect: "Pizza Rocket")
         hideKeyboard(app)
         app.buttons["grid"].tap()
         app.buttons["tool-ink"].tap()
@@ -128,7 +127,7 @@ final class GalleryUITests: XCTestCase {
         app.buttons["Rename"].tap()
         let nameField = app.alerts.textFields.firstMatch
         XCTAssertTrue(nameField.waitForExistence(timeout: 3))
-        nameField.clearAndType("Rocket Two")
+        nameField.clearAndType("Rocket Two", in: app)
         app.alerts.buttons["Rename"].tap()
         try waitFor(cards.firstMatch, label: "Rocket Two, Edited today")
 
@@ -239,12 +238,10 @@ final class GalleryUITests: XCTestCase {
 }
 
 private extension XCUIElement {
-    /// Selects everything in a text field and types over it.
-    func clearAndType(_ text: String) {
-        tap()
-        if let current = value as? String, !current.isEmpty {
-            typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
-        }
-        typeText(text)
+    /// Deletes what a text field holds and types over it, once it's ready.
+    @MainActor
+    func clearAndType(_ text: String, in app: XCUIApplication) {
+        let current = (value as? String).flatMap { $0 == placeholderValue ? nil : $0 } ?? ""
+        typeWhenReady(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count) + text, in: app, expect: text)
     }
 }

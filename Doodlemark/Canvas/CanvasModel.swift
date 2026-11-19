@@ -116,6 +116,11 @@ final class CanvasModel {
     /// A typing session in progress: everything typed until the field loses
     /// focus, or another change starts, is one undo step.
     private var typing: CanvasSnapshot?
+    /// Bumped when the text string changed other than by typing (undo, redo,
+    /// Delete text), so the field takes the model's string. Typing itself is
+    /// never echoed back: a keystroke landing between two SwiftUI updates
+    /// would otherwise be overwritten by the string from before it.
+    private(set) var textReplaced = 0
 
     // MARK: Lesson mode (the lesson player drives these)
 
@@ -451,6 +456,7 @@ final class CanvasModel {
         guard project.text != nil else { return }
         let before = snapshot
         project.text = nil
+        textReplaced += 1
         textMessage = nil
         record(before)
     }
@@ -561,6 +567,7 @@ final class CanvasModel {
         sketch = state.sketch
         ink = state.ink
         project.shapes = state.shapes
+        if project.text?.string != state.text?.string { textReplaced += 1 }
         project.text = state.text
         project.palette = state.palette
         if selectedShapeIndex == nil { selectedShapeID = nil }

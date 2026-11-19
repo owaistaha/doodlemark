@@ -337,12 +337,11 @@ final class CanvasScreenUITests: XCTestCase {
         app.buttons["tool-text"].tap()
         XCTAssertEqual(probe.label, "no text")
         let field = app.textFields["textField"]
-        field.tap()
-        field.typeText("Pizza Rocket")
+        field.typeWhenReady("Pizza Rocket", in: app, expect: "Pizza Rocket")
         try waitForLabel(probe, "text Pizza Rocket; LilitaOne 120 0° fill 2 tracking 0 caps off; at 512 512")
         keepScreenshot(app, "text-keyboard-up")
 
-        field.typeText("★")
+        field.typeWhenReady("★", in: app, expect: "Pizza Rocket")    // refused, so the field stays
         let message = app.staticTexts["textMessage"]
         XCTAssertTrue(message.waitForExistence(timeout: 3))
         XCTAssertEqual(message.label, "This font can't draw \u{201C}★\u{201D}.")
@@ -398,8 +397,7 @@ final class CanvasScreenUITests: XCTestCase {
         app.descendants(matching: .any)["swatch-2"].tap()
         app.buttons["font-Sniglet-ExtraBold"].tap()
         let field = app.textFields["textField"]
-        field.tap()
-        field.typeText("Pizza Rocket")
+        field.typeWhenReady("Pizza Rocket", in: app, expect: "Pizza Rocket")
         try waitForLabel(probe, "text Pizza Rocket; Sniglet-ExtraBold 120 0° fill 2 tracking 0 caps off; at 512 512")
         hideKeyboard(app)
         keepScreenshot(app, "text-picked")

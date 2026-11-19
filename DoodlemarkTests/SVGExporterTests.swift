@@ -130,6 +130,50 @@ final class SVGExporterTests: XCTestCase {
         XCTAssertEqual(d, "M0.00 0.00 C33.33 66.67 66.67 133.33 100.00 200.00 C133.33 133.33 166.67 66.67 200.00 0.00")
     }
 
+    // MARK: Tiny-segment merge
+
+    func testCornerCurlIsMergedAndTheLegsDontMove() {
+        // The step 7 rocket corner: a long leg, a curl of two ~2 pt chords, a long leg.
+        let points = [CGPoint(x: 595.27, y: 380), CGPoint(x: 595.81, y: 536.66), CGPoint(x: 595.66, y: 538.70),
+                      CGPoint(x: 594.51, y: 539.79), CGPoint(x: 432.37, y: 540.00)]
+        // The curl's middle point is 0.64 pt off its shortcut: it goes. Both
+        // legs keep their exact end points.
+        XCTAssertEqual(SVGExporter.mergeTinySegments(points), [points[0], points[1], points[3], points[4]])
+    }
+
+    func testOneTinySegmentAloneIsKept() {
+        let points = [CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0), CGPoint(x: 101, y: 1), CGPoint(x: 101, y: 100)]
+        XCTAssertEqual(SVGExporter.mergeTinySegments(points), points)
+    }
+
+    func testRealTinyLoopIsNeverFlattened() {
+        // A 6 pt loop between two long legs: merging would move points > 1 pt.
+        let loop = (0...8).map { i -> CGPoint in
+            let a = CGFloat(i) / 8 * 2 * .pi
+            return CGPoint(x: 100 + 3 * sin(a), y: 100 - 3 + 3 * cos(a))
+        }
+        let points = [CGPoint(x: 0, y: 100)] + loop + [CGPoint(x: 200, y: 100)]
+        XCTAssertEqual(SVGExporter.mergeTinySegments(points), points)
+    }
+
+    func testStrokeEndsNeverMove() {
+        // Jitter at both ends: the first and last points stay exactly where
+        // they were, only the jitter next to them goes.
+        let points = [CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0.2), CGPoint(x: 2, y: 0.1), CGPoint(x: 100, y: 0),
+                      CGPoint(x: 100, y: 60), CGPoint(x: 100.6, y: 61.4), CGPoint(x: 100.2, y: 62.8)]
+        let merged = SVGExporter.mergeTinySegments(points)
+        XCTAssertEqual(merged.first, points.first)
+        XCTAssertEqual(merged.last, points.last)
+        XCTAssertFalse(merged.contains(CGPoint(x: 1, y: 0.2)))
+        XCTAssertFalse(merged.contains(CGPoint(x: 100.6, y: 61.4)))
+        XCTAssertTrue(merged.contains(CGPoint(x: 100, y: 0)), "the real corner stays")
+    }
+
+    func testLongSegmentsAreUntouched() {
+        let zigzag = (0...10).map { CGPoint(x: CGFloat($0) * 20, y: $0.isMultiple(of: 2) ? 0 : 30) }
+        XCTAssertEqual(SVGExporter.mergeTinySegments(zigzag), zigzag)
+    }
+
     // MARK: Number formatting
 
     func testNumbersUseFixedTwoDecimals() {

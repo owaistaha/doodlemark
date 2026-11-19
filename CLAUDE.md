@@ -192,11 +192,18 @@ DoodlemarkTests/
   Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
   Snapshots/                    (byte-exact expected SVGs)
 DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas, gallery + relaunch,
-                                 the whole rocket lesson traced along its curves via TouchSynthesis.swift)
+                                 the whole rocket lesson traced along its curves via TouchSynthesis.swift;
+                                 typing only through UITestTyping.swift: wait for focus, type, verify the value)
+scripts/
+  make_app_icon.swift           (draws the AppIcon set: every iPad size + 1024; never edit the PNGs)
+  pick_ipad_simulator.sh        (UDID of an available iPad simulator, newest iOS; used by CI)
+.github/workflows/ci.yml        (push: build + unit tests + gate + Release check; manual: UI tests)
 Config/
   Base.xcconfig                 (committed; optionally includes ../Local.xcconfig)
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)
-project.yml
+project.yml                   (TARGETED_DEVICE_FAMILY "2" per target: XcodeGen's preset overrides project level)
+README.md                     (for a reader with 2 minutes; screenshots in docs/screenshots/)
+LICENSE                       (MIT for the code; fonts keep their OFL files)
 RISKS.md
 DEVICE_CHECKLIST.md           (hand checks on a real iPad, added to by every step)
 ```

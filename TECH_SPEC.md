@@ -89,7 +89,15 @@ The design choices below make this risk small:
    `stroke.path.interpolatedPoints(by: .distance(2))` gives a dense polyline in
    canvas space, after `stroke.transform` is applied.
 2. Simplify with Ramer–Douglas–Peucker (tolerance 0.25pt; 0.5 visibly
-   flattened finger wobble in the gate), then fit cubic Béziers: Catmull-Rom
+   flattened finger wobble in the gate). Then merge corner curls
+   (`mergeTinySegments`, step 9): at a sharp corner PencilKit's spline curls
+   and RDP keeps 3–5 points about 2 pt apart. Each run of 2+ chords shorter
+   than 3 pt is simplified again at 0.75 pt, and the run's two end points
+   (where the long legs attach) never move. Merging a run into a single
+   corner point was tried and rejected: it tilts the attached leg, and the
+   worst gate tile went 1% → 19–23%. Result: the step 7 export went 7,318 →
+   7,060 bytes (tiny segments 14 → 2), and the worst real gate tile is 5.6%.
+   Then fit cubic Béziers: Catmull-Rom
    tangents, handles a third of the shorter neighbouring chord, and **corner
    detection** (turns > 45° keep one-sided tangents, or a "V" becomes a "U").
 3. Width: PencilKit does **not** draw a monoline stroke `point.size.width` thick.
@@ -617,11 +625,33 @@ mirror axis are on screen only: never in the SVG or PNG.
   straight target = wobble tip, same stroke = same score), `LessonLoaderTests` (every bundled lesson
   parses and its points are inside 0…1024), `SVGExportTests` (pixel-diff gate), `ShapeGeometryTests`,
   `SymmetryTests`, `ProjectStoreTests` (save → load round-trip, crash anywhere in a save →
-  full old or full new save), `ExportTests` (export files vs the gate).
-- `.github/workflows/ci.yml`: macOS runner → `brew install xcodegen` →
-  `xcodegen generate` → `xcodebuild test` on an iPad simulator found via
-  `xcrun simctl list`. Check the current macOS runner image / Xcode version
-  before pinning one.
+  full old or full new save), `ExportTests` (export files vs the gate), and
+  the rest listed in CLAUDE.md's folder tree. UI tests drive real touches
+  (`TouchSynthesis`) and type through `typeWhenReady` (`UITestTyping.swift`):
+  wait for keyboard focus and a still field, type, then require the field's
+  value. Never retries.
+- Text field ↔ model: the field only takes the model's string when it
+  changed other than by typing (`CanvasModel.textReplaced`: undo, redo,
+  Delete text). Echoing every change back raced fast typing and dropped a
+  keystroke (the old flaky "Pizza Roc").
+- `.github/workflows/ci.yml` (step 9), on the `macos-26` arm64 runner
+  (checked against actions/runner-images in November 2026: Xcode 26.6
+  default, iOS 26.5 runtime with iPad (A16); XcodeGen not preinstalled):
+  - every push: `brew install xcodegen` → `xcodegen generate` →
+    `build-for-testing` → unit tests (with the gate) on the iPad picked by
+    `scripts/pick_ipad_simulator.sh` → a Release build whose binary is
+    checked for debug-screen symbols. Gate images are uploaded on failure.
+  - manual trigger (`workflow_dispatch`, "UI tests"): the UI tests too.
+    They're slow and use XCTest's private touch synthesis (RISKS #13).
+  - No signing (`CODE_SIGNING_ALLOWED=NO`), no Team ID; `Local.xcconfig`
+    is optional (`#include?`).
+- The app is iPad only: `TARGETED_DEVICE_FAMILY: "2"` is set on each target
+  in `project.yml`, because XcodeGen's iOS preset writes "1,2" per target
+  and overrides a project-level value (found in step 9).
+- App icon: `swift scripts/make_app_icon.swift` draws `AppMark` (ink square,
+  tangerine squiggle) with Core Graphics at every iPad size + the opaque
+  1024 marketing icon and writes `AppIcon.appiconset`. Rerun it if the mark
+  changes; don't edit the PNGs.
 
 ## Packages
 None. Only Apple frameworks: SwiftUI, PencilKit, CoreText, WebKit (export test

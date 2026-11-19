@@ -765,8 +765,10 @@ private struct TextOptions: View {
             let accepted = model.typeText(new)
             if accepted != new { draft = accepted }
         }
-        .onChange(of: model.textString) { _, new in
-            if new != draft { draft = new }       // undo, redo, delete
+        .onChange(of: model.textReplaced) {
+            // Undo, redo, Delete text. Not typing: the field is already ahead
+            // of the model there, and echoing could drop a fast keystroke.
+            if model.textString != draft { draft = model.textString }
         }
         .onSubmit { typing = false }
     }

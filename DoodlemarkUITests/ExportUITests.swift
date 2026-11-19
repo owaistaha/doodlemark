@@ -56,8 +56,8 @@ final class ExportUITests: XCTestCase {
 
         // The typed name is cleaned.
         let field = app.textFields["fileName"]
-        field.tap()
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 20) + "Space Cat/2!")
+        field.typeWhenReady(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 20) + "Space Cat/2!", in: app,
+                            expect: "Space Cat/2!")
         try waitForLabel(savesAs, "Saves Space-Cat-2.svg and Space-Cat-2.png")
         hideKeyboard(app)
 
