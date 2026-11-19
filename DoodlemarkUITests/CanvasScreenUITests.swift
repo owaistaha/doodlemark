@@ -13,7 +13,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -62,7 +62,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
@@ -233,7 +233,12 @@ final class CanvasScreenUITests: XCTestCase {
         let (app, stack) = launchLandscape()
         let probe = app.descendants(matching: .any)["debugShapes"]
         let zoom = app.descendants(matching: .any)["zoomPill"]
-        app.buttons["tool-shapes"].tap()
+        // The first UI test after an install sometimes loses its very first
+        // tap while the app settles: check it took, and tap again if not.
+        for _ in 0..<3 where !app.buttons["add-star"].exists {
+            app.buttons["tool-shapes"].tap()
+            _ = app.buttons["add-star"].waitForExistence(timeout: 2)
+        }
         app.buttons["add-star"].tap()
         var star = try shape(probe)
         XCTAssertEqual(star.kind, "star")
@@ -474,7 +479,7 @@ final class CanvasScreenUITests: XCTestCase {
         let app = XCUIApplication()
         // Start from the shipped defaults whatever an earlier run left in
         // the simulator: Smooth my lines ON, Pencil only OFF.
-        app.launchArguments += ["-smoothLines", "YES", "-pencilOnly", "NO"]
+        app.launchArguments += ["-resetProjects", "YES", "-openNewLogo", "YES", "-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
         let stack = app.descendants(matching: .any)["canvasStack"]
         XCTAssertTrue(stack.waitForExistence(timeout: 10))

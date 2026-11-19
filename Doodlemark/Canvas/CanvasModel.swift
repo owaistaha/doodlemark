@@ -45,7 +45,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
 }
 
 /// Editor state for one project, including the one undo history for all
-/// four layers. Saving comes in step 6.
+/// four layers. `ProjectAutosaver` watches it and saves.
 @MainActor @Observable
 final class CanvasModel {
     nonisolated static let pencilOnlyKey = "pencilOnly"
@@ -117,8 +117,17 @@ final class CanvasModel {
     /// focus, or another change starts, is one undo step.
     private var typing: CanvasSnapshot?
 
-    init(project: Project) {
+    /// A project with its drawings (a loaded one, or a new blank one).
+    init(project: Project, sketch: PKDrawing = PKDrawing(), ink: PKDrawing = PKDrawing()) {
         self.project = project
+        self.sketch = sketch
+        self.ink = ink
+    }
+
+    /// The name, from the canvas title (tap to rename). Not an undo step.
+    func rename(to typed: String) {
+        let name = ProjectNames.cleaned(typed, fallback: project.name)
+        if name != project.name { project.name = name }
     }
 
     /// The layer one-finger touches go to right now.
@@ -556,6 +565,19 @@ extension CanvasModel {
             text += "; guides" + (snapGuides.vertical ? " x" : "") + (snapGuides.horizontal ? " y" : "")
         }
         return text
+    }
+
+    /// "svg 1A2B…(4123); sketch 1 lines 57 points; mirror off grid on; Pizza
+    /// Rocket": the exported SVG's FNV-1a hash (stable across launches,
+    /// unlike `hashValue`) and the sketch, so a UI test can check a reopened
+    /// project is identical (`debugDocument`).
+    var debugDocumentFingerprint: String {
+        let svg = (try? SVGExporter.svg(project: project, ink: ink)) ?? "export failed"
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        for byte in svg.utf8 { hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01B3 }
+        let points = sketch.strokes.reduce(0) { $0 + $1.path.count }
+        return "svg \(String(hash, radix: 16, uppercase: true))(\(svg.utf8.count)); sketch \(sketch.strokes.count) lines"
+            + " \(points) points; mirror \(mirrorOn ? "on" : "off") grid \(gridOn ? "on" : "off"); \(project.name)"
     }
 
     /// "text Pizza Rocket; LilitaOne 120 0° fill 2 tracking 0 caps off; at 512 512",

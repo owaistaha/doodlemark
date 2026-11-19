@@ -44,7 +44,9 @@ thicker border or a weight change.
 - Shadows only on the canvas square and mockups: `0 12 40 ink@10%`.
 
 ## Layout (editor)
-- Top bar 72 pt: back, title + "Saved", undo/redo, Mirror and Grid toggles, primary "Preview & export".
+- Top bar 72 pt: back (to the gallery, saves first), project name + save
+  state ("Not saved yet", "Saving…", "Saved", "Couldn't save…"; tap the name
+  to rename), undo/redo, Mirror and Grid toggles, primary "Preview & export".
 - Left tool rail 100 pt: Sketch, Ink, Shapes, Text, Eraser (icon + label, never icon only).
 - Right panel 300 pt: Layers (fixed 4, active one highlighted), Palette (3 swatches + "Try another"), tool options ("Line size", "Smooth my lines", "Pencil only").
 - Palette: tap a swatch to make it the current color (blue ring); tap and
@@ -79,6 +81,41 @@ thicker border or a weight change.
   (12 pt margins, zoom and hint pills hidden), the tool rail stays put behind
   the keys, and the panel scrolls "Logo name" to its top so the field and its
   note are always visible.
+
+## Layout (gallery, design/Gallery.png)
+- Paper background, 48 pt padding. Header: the app mark (ink tile with a
+  tangerine squiggle) + "Doodlemark" (Bricolage 30); the "My logos | Learn"
+  switch (white, 1 pt border; selected = `pencilBlue` with white bold text);
+  "New logo" primary button (56 pt). No settings button in v1 (the mockup's
+  sun icon has no feature behind it; the app is light-only).
+- "Your logos" (display 44) and "Doodle it. Ink it. Export it."; "Need an
+  idea?" with the first three prompts as white capsule chips (to the right of
+  the title when they fit, under it when they don't). A chip starts a new logo
+  with that prompt straight away.
+- Cards grid (adaptive, ≥ 230 pt columns, 24 pt gaps): "Start a new logo"
+  dashed tile first (2 pt `lineStrong` dashes, 76 pt tangerine plus tile),
+  then projects, newest edited first: white card, 20 pt radius, 1 pt `line`
+  border; the thumbnail on `thumbBackdrop` (168 pt), then the name (Inter
+  bold 20) and "Edited today / yesterday / 3 days ago / last week / 2 weeks
+  ago" in `inkMuted`. Touch and hold for Rename, Duplicate, Delete; Delete
+  asks first ("It's gone for good. This can't be undone.").
+- A project that can't be read: same card with a warning symbol, "Couldn't
+  open this logo", "Its file is damaged." and a Delete button.
+- First launch: one dashed card with the app mark, "No logos yet", "Every
+  logo starts with a doodle. Tap New logo to make your first one." and
+  "New logo".
+- Learn tab (until step 8b): graduation cap in a `blueTint` circle, "Lessons
+  are coming soon".
+
+## Layout (New logo, design/NewLogo.png)
+- "‹ Gallery" (white, 56 pt), "Pick a start" on the right; "What are we
+  making today?" (display) and the subtitle.
+- Left: the Blank canvas card (300 pt). Right: "Or try a prompt", Shuffle,
+  a 3 × 3 grid of prompt cards (56 pt colored square + title, 104 pt tall).
+  Selected (blank or a prompt) = `blueTint` + 2 pt `pencilBlue` border.
+  Blank is selected when the screen opens; tapping a selected prompt goes
+  back to blank. "Selected: …" and "Start drawing →" at the bottom.
+- 10 prompts, 9 shown; Shuffle always brings in the hidden one.
 
 ## Voice
 Friendly words over jargon: "Smooth my lines", not "stroke stabilization";

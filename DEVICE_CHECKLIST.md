@@ -189,3 +189,57 @@ blank canvas at 100%.
     turned and spaced, pass).
     *Expected:* the text looks identical to the canvas: same font, spacing,
     turn and color, nothing replaced by a system font.
+
+## Step 6: saving, gallery, New logo
+
+35. [ ] **First launch.** Delete the app, install it again and open it.
+    *Expected:* it opens straight to the gallery (no splash): "No logos yet",
+    a friendly line and a New logo button.
+36. [ ] **The PRD check: force-quit.** New logo → a prompt → Start drawing.
+    Sketch something, ink over it, add a shape and a name. Wait until the
+    title says "Saved". Swipe up to the app switcher and swipe Doodlemark
+    away. Open it again.
+    *Expected:* the logo is in the gallery with its picture, named after the
+    prompt, "Edited today". Opening it shows everything exactly as you left
+    it: sketch, lines, shape, name, colors, Mirror and Grid.
+37. [ ] **Force-quit right after drawing.** Draw one line and immediately go
+    to the app switcher and swipe the app away (don't wait for "Saved").
+    *Expected:* the line is still there after reopening (the app saves as
+    it leaves the screen). Note it if it isn't.
+38. [ ] **Back saves.** Draw, then tap Back at once.
+    *Expected:* the gallery card's picture already shows the new line.
+39. [ ] **Untouched new logo.** New logo → Start drawing → Back without
+    drawing.
+    *Expected:* no empty "Untitled logo" card appears.
+40. [ ] **Rename, duplicate, delete.** Touch and hold a card with a finger.
+    Rename it (keyboard comes up in the box), then Duplicate, then Delete
+    the copy.
+    *Expected:* the menu appears under your finger; the new name shows on
+    the card; the copy appears first as "<name> copy"; Delete asks first
+    and only removes the copy. Also rename from the canvas by tapping the
+    title.
+41. [ ] **Gallery scrolling.** Make about 12 logos (Duplicate helps) and
+    flick the gallery up and down fast.
+    *Expected:* smooth scrolling, pictures appear without flashing, newest
+    edited first.
+42. [ ] **Sketch-only card.** Make a logo with only a Sketch doodle, go back.
+    *Expected:* the card shows the doodle, faded (not a blank card). Add one
+    Ink line: the card then shows only the ink, like the export.
+43. [ ] **Low storage.** If you can, fill the iPad until it warns about
+    storage, then draw.
+    *Expected:* the title says "Couldn't save. Trying again on the next
+    change." and nothing crashes; it saves again once there's space.
+44. [ ] **New logo screen with a finger.** Tap Shuffle a few times, pick a
+    prompt, tap it again, then pick another; also try a "Need an idea?" chip
+    in the gallery.
+    *Expected:* Shuffle visibly changes the grid; tapping the picked prompt
+    again goes back to Blank canvas; "Selected:" follows; the chip opens a
+    new logo named after it directly.
+45. [ ] **Portrait.** Turn the iPad to portrait on the gallery and the New
+    logo screen.
+    *Expected:* the grid reflows to fewer columns, the chips move under the
+    title, nothing is cut off or overlapping.
+46. [ ] **Files app.** (Optional) Settings → Doodlemark has nothing to set,
+    and the projects don't appear in the Files app (they're app data, not
+    documents).
+    *Expected:* as described; note it if projects do show up in Files.

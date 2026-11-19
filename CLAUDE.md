@@ -115,12 +115,13 @@ XcodeGen generates the project from `project.yml`. No third-party packages.
 ```
 Doodlemark/
   App/
-    DoodlemarkApp.swift
+    DoodlemarkApp.swift         (AppModel: gallery ↔ New logo ↔ canvas; saves on background)
     Theme.swift                 (tokens from DESIGN.md)
+    Components.swift            (Primary/Secondary buttons shared by every screen)
   Models/
     Project.swift               (Project, LogoShape, LogoText, HexColor)
     Palettes.swift              (12 curated 3-color sets; fills are palette slots)
-    Prompts.swift               (starter prompt cards)
+    Prompts.swift               (the 10 starter prompts; PromptDeck shows 9, Shuffle)
     LogoFonts.swift             (the 5 bundled logo fonts; the only ones the picker offers)
   Canvas/
     CanvasScreen.swift
@@ -141,7 +142,7 @@ Doodlemark/
   Export/
     SVGExporter.swift
     GlyphPaths.swift
-    PNGExporter.swift
+    PNGExporter.swift           (Shapes + Ink + Text render; thumbnails now, PNG export in step 7)
   Learn/
     Lesson.swift                (Codable lesson + step)
     LessonLibrary.swift         (loads bundled JSON)
@@ -152,14 +153,18 @@ Doodlemark/
     LessonPlayer.swift
     LessonCompleteScreen.swift
   Storage/
-    ProjectStore.swift
+    ProjectStore.swift          (schema-versioned files, atomic writes, list/rename/duplicate/delete)
+    ProjectAutosaver.swift      (1 s debounce + save now)
+    ThumbnailCache.swift
   Debug/
     ExportDebugScreen.swift     (DEBUG builds only: bare Ink canvas + SVG preview + share)
     CanvasSpikeScreen.swift     (DEBUG builds only: step 4a mirror-undo + routing spike)
     DebugLinks.swift            (DEBUG builds only: links to the two screens above)
+    DebugLaunch.swift           (DEBUG builds only: -resetProjects, -seedSampleProjects, -openNewLogo …)
   Screens/
     GalleryScreen.swift
-    NewLogoSheet.swift
+    GalleryModel.swift          (gallery state and actions, "Edited …" labels)
+    NewLogoSheet.swift          (full screen: blank or a prompt → Start drawing)
     PalettePicker.swift
     MockupPreview.swift
   Resources/
@@ -170,10 +175,12 @@ Doodlemark/
 DoodlemarkTests/
   SVGExportTests.swift          (the hard gate; images → GateOutput/, gitignored)
   TextToolTests.swift           (fonts, blocked characters, tracking/caps, typing undo, text in SVG)
+  ProjectStoreTests.swift       (round trip, crash mid-save, broken projects, duplicate/delete)
+  AutosaveTests.swift           (debounce on a manual clock, save now, thumbnails)
   MonolineWidthTests.swift      (documents PencilKit's monoline width law)
   Gate/                         (GateConfig thresholds, renderers, metrics, fixtures)
   Snapshots/                    (byte-exact expected SVGs)
-DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas screen)
+DoodlemarkUITests/              (real synthesized touches: stored widths, spikes, canvas, gallery + relaunch)
 Config/
   Base.xcconfig                 (committed; optionally includes ../Local.xcconfig)
 Local.xcconfig.example         (committed template; copy to Local.xcconfig, gitignored)

@@ -205,7 +205,7 @@ normal editing mode.
 ## Data model (files, no database)
 ```
 Documents/Projects/<uuid>/
-  project.json      // ProjectMeta + shapes + text + palette
+  project.json      // "schemaVersion": 1 + the Project fields (flat, sorted keys)
   sketch.drawing    // PKDrawing.dataRepresentation()
   ink.drawing       // PKDrawing.dataRepresentation()
   thumb.png         // 512px gallery thumbnail, regenerated on save
@@ -249,8 +249,47 @@ shape's real path bounds (`ShapeGeometry.path(for:).boundingBoxOfPath`), never
 the `size × size` box. A regular star is narrower than its box, and its bounds
 sit higher than its `center` (its bottom points reach cos 36° of the radius).
 
-Saving: debounce 1s after any change, write atomically (`.atomic`). Never
-write all three files on every stroke.
+## Storage (step 6)
+`Storage/ProjectStore.swift` (files), `Storage/ProjectAutosaver.swift`
+(when), `Storage/ThumbnailCache.swift` (gallery pictures).
+- **Format:** `project.json` is `ProjectFile`: the `Project` fields plus
+  `"schemaVersion": 1` at the top level. A file with a newer version isn't
+  opened (it shows as broken, never rewritten); migrations from older
+  versions go in `ProjectFile.init(from:)`. The folder name is the project id.
+- **Atomic writes:** every file goes to a hidden temp file in the same folder
+  (`.<name>.saving-<uuid>`) and is then `rename(2)`d over the old one, which
+  is atomic. Order: sketch, ink, thumbnail, `project.json` last. A crash
+  mid-save leaves every file whole (old or new version) and the folder
+  opens; at worst a drawing is from the newer save while `project.json` is
+  from the one before. Leftover temp files are never read and are cleared by
+  the next save of that project. (`ProjectStoreTests` crash at each write.)
+- **When:** `ProjectAutosaver` watches the model's project and both drawings
+  (Observation), so every change counts: strokes, shapes, text, palette,
+  Mirror/Grid, the name. It saves **1 s after the last change** (a burst of
+  strokes or a typing session is one write), and **right away** when you
+  leave the canvas and when the app goes inactive or to the background
+  (which also covers a force-quit from the app switcher). Saves run on the
+  main actor: a project is a few hundred KB and the save happens while
+  nothing is being drawn. `updatedAt` is stamped on the saved copy. A new
+  project nobody touched is never written (New logo → Back leaves no empty
+  card). Undoing back to the saved state writes nothing. A failed save shows
+  "Couldn't save" in the top bar and the next change tries again.
+- **Loading:** `ProjectStore.load` reads all three files and puts
+  `.monoline` back on every Ink stroke, because a reload reports them as
+  `.pen` (RISKS #11). Pixels and export are unchanged either way.
+- **Broken projects:** a folder whose `project.json` can't be read (garbage,
+  missing, newer version, odd folder name) is listed as a "Couldn't open this
+  logo" card with Delete. A project whose drawings fail to load when opened
+  turns into that card too. Never a crash, never silently dropped.
+- **Thumbnails:** `thumb.png`, 512 px, rendered by `PNGExporter` (the same
+  Shapes → Ink → Text drawing the PNG export uses, transparent, no Sketch).
+  A project that only has a sketch shows the sketch at 60% instead, so the
+  card isn't blank. Rewritten on every save. The gallery decodes them off the
+  main thread into an `NSCache` keyed by id + `updatedAt`.
+- **Gallery actions:** Rename changes only the name (not "last edited").
+  Duplicate is a deep copy into a new folder ("<name> copy", edited now).
+  Delete removes the folder (only ever a folder directly inside `Projects/`).
+  Names are trimmed and at most 40 characters; an empty name keeps the old one.
 
 ## Palette
 - 12 curated 3-color palettes in `Models/Palettes.swift`. Rules, checked by

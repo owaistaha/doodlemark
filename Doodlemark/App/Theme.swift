@@ -58,6 +58,10 @@ enum Theme {
     static let labelStrong = Font.custom(FontName.semibold, size: 15)
     /// Small 13.
     static let small = Font.custom(FontName.regular, size: 13)
+    /// The "Doodlemark" wordmark next to the app mark in the gallery.
+    static let wordmark = Font.custom(FontName.display, size: 30)
+    /// Project name on a gallery card, prompt card titles.
+    static let cardTitle = Font.custom(FontName.bold, size: 20)
     /// Section labels: 13 semibold, uppercase, +0.6 tracking (see `sectionLabel()`).
     static let sectionLabel = Font.custom(FontName.semibold, size: 13)
     static let sectionLabelTracking: CGFloat = 0.6
@@ -86,6 +90,22 @@ enum Theme {
         static let swatch: CGFloat = 60
         static let hairline: CGFloat = 1
         static let selectedBorder: CGFloat = 2     // selected rows and cards
+        static let screenPadding: CGFloat = 48     // gallery and New logo
+        static let bigButton: CGFloat = 56         // gallery/New logo primary buttons
+        static let dashedBorder: CGFloat = 2       // "Start a new logo" tile, blank canvas
+        static let cardGap: CGFloat = 24
+        static let thumbnailHeight: CGFloat = 168  // gallery card picture area
+        static let promptAccent: CGFloat = 56      // colored square on a prompt card
+    }
+
+    /// The small square on a prompt card.
+    static func accent(_ accent: Prompt.Accent) -> Color {
+        switch accent {
+        case .tangerine: tangerine
+        case .blue: pencilBlue
+        case .ink: ink
+        case .butter: butter
+        }
     }
 
     /// The only shadow: canvas square and mockups, `0 12 40 ink@10%`.

@@ -3,16 +3,18 @@ import SwiftUI
 /// The editor (design/Canvas.png): top bar, tool rail, the square canvas on
 /// its backdrop, and the right panel with layers, palette and tool options.
 ///
-/// Sketch and Ink draw for real, with undo/redo, Mirror and Grid. Shapes and
-/// Text are placeholders (step 5), Preview & export is step 7, saving step 6.
+/// Every tool works, with one undo history; the project autosaves. Preview &
+/// export is step 7.
 struct CanvasScreen: View {
     @State var model: CanvasModel
-    /// Back to the gallery. `nil` until the gallery exists (step 6).
+    /// Saves the project; drives "Saved" in the top bar.
+    var autosaver: ProjectAutosaver?
+    /// Back to the gallery (saves first).
     var onBack: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
-            CanvasTopBar(model: model, onBack: onBack)
+            CanvasTopBar(model: model, autosaver: autosaver, onBack: onBack)
             Rectangle().fill(Theme.line).frame(height: Theme.Metrics.hairline)
             HStack(spacing: 0) {
                 // The rail stays full height behind the on-screen keyboard. It's
@@ -65,17 +67,33 @@ struct CanvasCommands: Commands {
 
 private struct CanvasTopBar: View {
     let model: CanvasModel
+    let autosaver: ProjectAutosaver?
     let onBack: (() -> Void)?
+    @State private var renaming = false
+    @State private var draftName = ""
 
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 16) {
                 BarIconButton(symbol: "chevron.left", label: "Back to my logos") { onBack?() }
                     .disabled(onBack == nil)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.project.name).font(Theme.heading).lineLimit(1)
-                    Text("Not saved yet").font(Theme.small).foregroundStyle(Theme.inkMuted)
+                    .accessibilityIdentifier("back")
+                Button {
+                    draftName = model.project.name
+                    renaming = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.project.name).font(Theme.heading).lineLimit(1)
+                        Text(saveStatus).font(Theme.small).foregroundStyle(Theme.inkMuted)
+                            .accessibilityIdentifier("saveStatus")
+                    }
+                    .frame(minHeight: Theme.Metrics.minTarget)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(model.project.name), \(saveStatus)")
+                .accessibilityHint("Rename this logo")
+                .accessibilityIdentifier("projectTitle")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -105,6 +123,31 @@ private struct CanvasTopBar: View {
         .padding(.horizontal, Theme.Metrics.barPadding)
         .frame(height: Theme.Metrics.topBarHeight)
         .background(Theme.surface)
+        .renameAlert(isPresented: $renaming, name: $draftName) { model.rename(to: draftName) }
+    }
+
+    private var saveStatus: String {
+        switch autosaver?.state {
+        case .saved: "Saved"
+        case .editing: "Saving…"
+        case .failed: "Couldn't save. Trying again on the next change."
+        case .notSaved, nil: "Not saved yet"
+        }
+    }
+}
+
+extension View {
+    /// "Rename" with a text field, from the canvas title and the gallery card.
+    func renameAlert(isPresented: Binding<Bool>, name: Binding<String>, onSave: @escaping () -> Void) -> some View {
+        alert("Rename logo", isPresented: isPresented) {
+            TextField("Logo name", text: name)
+                .textInputAutocapitalization(.words)
+                .accessibilityIdentifier("renameField")
+            Button("Cancel", role: .cancel) {}
+            Button("Rename", action: onSave)
+        } message: {
+            Text("Up to \(ProjectNames.maxLength) letters.")
+        }
     }
 }
 
@@ -152,27 +195,6 @@ private struct ToggleButton: View {
         .buttonStyle(.plain)
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? .isSelected : [])
-    }
-}
-
-/// Tangerine main action. Text on tangerine is always ink (DESIGN.md).
-private struct PrimaryButton: View {
-    let title: String
-    let symbol: String
-    let action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(Theme.bodyStrong)
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 20)
-                .frame(height: Theme.Metrics.barButton)
-                .background(Theme.tangerine, in: RoundedRectangle(cornerRadius: Theme.Radius.button))
-                .opacity(isEnabled ? 1 : 0.45)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -277,6 +299,10 @@ private struct CanvasArea: View {
                         .accessibilityElement()
                         .accessibilityLabel(model.debugTextSummary)
                         .accessibilityIdentifier("debugText")
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel(model.debugDocumentFingerprint)
+                        .accessibilityIdentifier("debugDocument")
                 }
             }
             #endif
@@ -499,33 +525,6 @@ private struct Swatch: View {
             .accessibilityAction { onTap() }
             .accessibilityAction(named: "Change this color everywhere") { onHold(frame) }
             .accessibilityIdentifier("swatch-\(slot.number)")
-    }
-}
-
-/// "Secondary" from the style guide: white with a border, ink text.
-private struct SecondaryButton: View {
-    let title: String
-    var symbol: String?
-    var compact = false
-    let action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        Button(action: action) {
-            Group {
-                if let symbol { Label(title, systemImage: symbol) } else { Text(title) }
-            }
-            .font(compact ? Theme.labelStrong : Theme.bodyStrong)
-            .foregroundStyle(isEnabled ? Theme.ink : Theme.lineStrong)
-            .padding(.horizontal, compact ? 12 : 16)
-            .frame(maxWidth: compact ? nil : .infinity, minHeight: compact ? 36 : Theme.Metrics.barButton)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.small)
-                .strokeBorder(Theme.line, lineWidth: Theme.Metrics.hairline))
-            .frame(minHeight: Theme.Metrics.minTarget)   // 44 pt target even when it looks compact
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
