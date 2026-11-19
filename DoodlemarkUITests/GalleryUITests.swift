@@ -190,9 +190,11 @@ final class GalleryUITests: XCTestCase {
         app.launchArguments = (reset ? ["-resetProjects", "YES"] : []) + extra
             + ["-smoothLines", "YES", "-pencilOnly", "NO"]
         app.launch()
-        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "frame.size.width > frame.size.height"),
-                                                  object: app.windows.firstMatch)
-        _ = XCTWaiter().wait(for: [landscape], timeout: 5)
+        // Wait for the turn to landscape. (A predicate on "frame.size.width"
+        // never matches, so it used to wait the full 5 s.)
+        let window = app.windows.firstMatch
+        let deadline = Date().addingTimeInterval(5)
+        while window.frame.width <= window.frame.height, Date() < deadline { usleep(100_000) }
         sleep(1)
         return app
     }

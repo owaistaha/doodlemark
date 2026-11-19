@@ -144,6 +144,9 @@ final class CanvasModel {
     var penColor: HexColor { project.color(for: currentSlot) }
 
     func select(_ newTool: CanvasTool) {
+        #if DEBUG
+        TouchTrace.note("select \(newTool)")
+        #endif
         switch newTool {
         case .sketch: eraserLayer = .sketch
         case .ink: eraserLayer = .ink

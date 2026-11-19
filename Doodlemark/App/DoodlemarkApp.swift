@@ -85,12 +85,15 @@ extension AppModel {
     /// more than once, so nothing with side effects goes in its init.
     static let shared: AppModel = {
         let store = ProjectStore()
+        store.removeLeftovers()                         // unfinished saves from a crash
+        ExportFiles.removeLeftovers()                   // export files a share sheet never cleaned up
         #if DEBUG
         DebugLaunch.prepare(store)
         #endif
         let app = AppModel(store: store)
         #if DEBUG
         if DebugLaunch.opensNewLogo { app.startNewProject(prompt: nil) }
+        TouchTrace.install()
         #endif
         return app
     }()

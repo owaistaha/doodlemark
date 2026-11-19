@@ -233,9 +233,13 @@ final class CanvasScreenUITests: XCTestCase {
         let (app, stack) = launchLandscape()
         let probe = app.descendants(matching: .any)["debugShapes"]
         let zoom = app.descendants(matching: .any)["zoomPill"]
-        // The first UI test after an install sometimes loses its very first
-        // tap while the app settles: check it took, and tap again if not.
-        for _ in 0..<3 where !app.buttons["add-star"].exists {
+        // Guard: the first UI test after the unit tests used to lose its very
+        // first tap (step 6). With the launch wait fixed and the polling
+        // probe gone it hasn't happened in 12 runs; the touch trace
+        // (`-traceTouches YES`) showed the tap reaching the button every time.
+        // If it ever comes back, the log says so and the tap is retried.
+        for attempt in 0..<3 where !app.buttons["add-star"].exists {
+            if attempt > 0 { print("LOST-FIRST-TAP| retrying the Shapes tap, attempt \(attempt)") }
             app.buttons["tool-shapes"].tap()
             _ = app.buttons["add-star"].waitForExistence(timeout: 2)
         }
@@ -485,9 +489,11 @@ final class CanvasScreenUITests: XCTestCase {
         XCTAssertTrue(stack.waitForExistence(timeout: 10))
         // Let the turn to landscape finish: a tap during it can land on the
         // portrait position of a button (seen once on a first launch).
-        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "frame.size.width > frame.size.height"),
-                                                  object: app.windows.firstMatch)
-        _ = XCTWaiter().wait(for: [landscape], timeout: 5)
+        // (A predicate on "frame.size.width" never matches: XCUIElement's
+        // frame isn't key-value readable that way, so it waited the full 5 s.)
+        let window = app.windows.firstMatch
+        let deadline = Date().addingTimeInterval(5)
+        while window.frame.width <= window.frame.height, Date() < deadline { usleep(100_000) }
         sleep(1)
         return (app, stack)
     }

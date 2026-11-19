@@ -25,6 +25,8 @@ targets:
       properties:
         CFBundleDisplayName: Doodlemark
         UILaunchScreen: {}
+        # "Save Image" in the share sheet adds the exported PNG to Photos.
+        NSPhotoLibraryAddUsageDescription: Doodlemark saves your logo picture to your photos when you tap Save Image. It never looks at your other photos.
         UIRequiresFullScreen: false
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait

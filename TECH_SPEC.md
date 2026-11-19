@@ -256,13 +256,24 @@ sit higher than its `center` (its bottom points reach cos 36° of the radius).
   `"schemaVersion": 1` at the top level. A file with a newer version isn't
   opened (it shows as broken, never rewritten); migrations from older
   versions go in `ProjectFile.init(from:)`. The folder name is the project id.
-- **Atomic writes:** every file goes to a hidden temp file in the same folder
-  (`.<name>.saving-<uuid>`) and is then `rename(2)`d over the old one, which
-  is atomic. Order: sketch, ink, thumbnail, `project.json` last. A crash
-  mid-save leaves every file whole (old or new version) and the folder
-  opens; at worst a drawing is from the newer save while `project.json` is
-  from the one before. Leftover temp files are never read and are cleared by
-  the next save of that project. (`ProjectStoreTests` crash at each write.)
+- **Atomic saves (one folder swap):** a save writes every file (sketch,
+  ink, thumbnail, `project.json`) into a fresh staging folder,
+  `Projects/.staging/<id>-<uuid>/` (hidden, same volume), and then swaps
+  the whole folder in with `FileManager.replaceItemAt` (`rename(2)` with
+  `RENAME_SWAP` on APFS, atomic; a first save is a plain `moveItem`). So
+  all four files always come from the same save. That matters because Ink
+  colors are linked to palette slots by exact color: an `ink.drawing` from
+  one save next to a `project.json` from another could break recolor. A
+  crash at any point leaves the full old save or the full new one, never a
+  mix; a first save that dies leaves no folder (no empty or error card).
+  Rename is a folder swap too (the other files copied over byte for byte).
+  Staging folders are never listed or read; the next save of that project
+  clears its own, and launch clears them all (`removeLeftovers`, which also
+  removes step 6's old `.saving-` temp files). An ordinary failure (disk
+  full) removes its staging folder and keeps the old save.
+  `ProjectStoreTests` cuts a save off after every step and half-way through
+  every file, relaunches, and compares the folder byte for byte with the old
+  and new saves.
 - **When:** `ProjectAutosaver` watches the model's project and both drawings
   (Observation), so every change counts: strokes, shapes, text, palette,
   Mirror/Grid, the name. It saves **1 s after the last change** (a burst of
@@ -283,6 +294,8 @@ sit higher than its `center` (its bottom points reach cos 36° of the radius).
   turns into that card too. Never a crash, never silently dropped.
 - **Thumbnails:** `thumb.png`, 512 px, rendered by `PNGExporter` (the same
   Shapes → Ink → Text drawing the PNG export uses, transparent, no Sketch).
+  With no thumbnail (render failed) the save has none rather than an older
+  one that no longer matches.
   A project that only has a sketch shows the sketch at 60% instead, so the
   card isn't blank. Rewritten on every save. The gallery decodes them off the
   main thread into an `NSCache` keyed by id + `updatedAt`.
@@ -290,6 +303,44 @@ sit higher than its `center` (its bottom points reach cos 36° of the radius).
   Duplicate is a deep copy into a new folder ("<name> copy", edited now).
   Delete removes the folder (only ever a folder directly inside `Projects/`).
   Names are trimmed and at most 40 characters; an empty name keeps the old one.
+
+## Preview & export (step 7)
+`Export/ExportFiles.swift` (files, no UI), `Screens/ExportScreen.swift`
+(screen, panel, share sheet), `Screens/MockupPreview.swift` (mockups).
+- **Entry:** "Preview & export" in the canvas top bar. If there's no Ink,
+  shape or text (`ExportFiles.isEmpty`; a sketch alone counts as nothing),
+  it shows "Draw something first." and nothing opens. Otherwise it ends
+  typing, saves, and opens the screen full screen over the canvas.
+- **Mockups** all use the real `PNGExporter` render: app-icon tile (logo on
+  paper, continuous corners at 22.5%), round sticker (white rim, circle
+  crop, on `pencilBlue`), tiny test at 96/48/24/16 pt (each rendered at its
+  own size × screen scale, never scaled down from a big render, so thin
+  lines look as they will), light & dark (transparent logo on paper and on
+  ink).
+- **Panel:** SVG and PNG 1024 × 1024 cards (both on by default; with
+  neither, "Export & share" is off and the line under the name says "Pick
+  SVG, PNG or both."), Transparent background (PNG only; off = paper
+  `#FBF8F2`, never a rectangle in the SVG), File name (defaults to the
+  project name in kebab-case; `ExportFiles.fileName` folds accents, keeps
+  ASCII letters, digits and `_`, turns everything else into single dashes,
+  no slashes or dots, at most 60 characters, empty → the project name). The
+  line under the field shows what the name became ("Saves pizza-rocket.svg
+  and pizza-rocket.png").
+- **Files:** SVG = `SVGExporter.svg(project:ink:)` (the gated exporter),
+  byte for byte. PNG = `PNGExporter` (the thumbnails' renderer) at 1024,
+  sRGB. Neither takes a sketch parameter, so the Sketch layer can't reach
+  them. Written into `tmp/Export-<uuid>/`, shared with
+  `UIActivityViewController` (popover from the button), and the folder is
+  removed when the share sheet closes (shared or not). Launch removes any
+  `Export-` folder left by a kill while the sheet was open.
+- **Save Image:** `NSPhotoLibraryAddUsageDescription` (add-only access) is
+  in the Info.plist, so Save Image from the share sheet asks once instead of
+  crashing.
+- **Tests:** `ExportTests` (SVG equals the gated exporter, PNG vs the gate's
+  native render, transparent vs paper, file names, empty and sketch-only
+  refusal, sketch in neither file, temp cleanup, mockup renders),
+  `ExportUITests` (refusal alert; share sheet opens with the named files,
+  and they're gone after it closes).
 
 ## Palette
 - 12 curated 3-color palettes in `Models/Palettes.swift`. Rules, checked by
@@ -474,7 +525,8 @@ mirror axis are on screen only: never in the SVG or PNG.
   stroke = same score, shifted 50pt = lower, half-length = miss, zig-zag over a
   straight target = wobble tip), `LessonLoaderTests` (every bundled lesson
   parses and its points are inside 0…1024), `SVGExportTests` (pixel-diff gate), `ShapeGeometryTests`,
-  `SymmetryTests`, `ProjectStoreTests` (save → load round-trip, atomic write).
+  `SymmetryTests`, `ProjectStoreTests` (save → load round-trip, crash anywhere in a save →
+  full old or full new save), `ExportTests` (export files vs the gate).
 - `.github/workflows/ci.yml`: macOS runner → `brew install xcodegen` →
   `xcodegen generate` → `xcodebuild test` on an iPad simulator found via
   `xcrun simctl list`. Check the current macOS runner image / Xcode version

@@ -71,6 +71,9 @@ private struct CanvasTopBar: View {
     let onBack: (() -> Void)?
     @State private var renaming = false
     @State private var draftName = ""
+    @State private var nothingToExport = false
+    @State private var export: ExportModel?
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         HStack(spacing: 12) {
@@ -115,15 +118,34 @@ private struct CanvasTopBar: View {
                     .accessibilityIdentifier("grid")
             }
 
-            // Preview & export is step 7.
-            PrimaryButton(title: "Preview & export", symbol: "square.and.arrow.up") {}
-                .disabled(true)
+            PrimaryButton(title: "Preview & export", symbol: "square.and.arrow.up") { openExport() }
+                .accessibilityIdentifier("previewExport")
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, Theme.Metrics.barPadding)
         .frame(height: Theme.Metrics.topBarHeight)
         .background(Theme.surface)
         .renameAlert(isPresented: $renaming, name: $draftName) { model.rename(to: draftName) }
+        .alert("Draw something first.", isPresented: $nothingToExport) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Ink a line, add a shape or type a name. Your sketch stays private, so it doesn't count.")
+        }
+        .fullScreenCover(item: $export) { export in
+            ExportScreen(model: export) { self.export = nil }
+        }
+    }
+
+    /// Ink, shapes or text: the export screen. Nothing (or only a sketch):
+    /// "Draw something first." and no export.
+    private func openExport() {
+        model.endTyping()
+        guard !ExportFiles.isEmpty(project: model.project, ink: model.ink) else {
+            nothingToExport = true
+            return
+        }
+        autosaver?.saveNow()
+        export = ExportModel(project: model.project, ink: model.ink, displayScale: displayScale)
     }
 
     private var saveStatus: String {

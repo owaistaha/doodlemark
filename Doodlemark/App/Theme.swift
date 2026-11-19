@@ -33,6 +33,9 @@ enum Theme {
     static let butter = Color(hex: 0xFFC93C)
     /// Sketch-layer pencil color (faded look).
     static let sketchStroke = Color(hex: 0xC9C3D3)
+    /// `paper` as file data: the PNG export background when "Transparent
+    /// background" is off.
+    static let paperHex = HexColor(red: 0xFB, green: 0xF8, blue: 0xF2)
 
     // MARK: Type (DESIGN.md → Type). UI fonts only; logo text uses the logo fonts.
 
@@ -96,6 +99,27 @@ enum Theme {
         static let cardGap: CGFloat = 24
         static let thumbnailHeight: CGFloat = 168  // gallery card picture area
         static let promptAccent: CGFloat = 56      // colored square on a prompt card
+        static let exportPanelWidth: CGFloat = 400 // Preview & export right panel
+        static let checkbox: CGFloat = 28
+    }
+
+    /// Preview & export mockups (design/Export.png).
+    enum Mockup {
+        /// Pixel size of the logo render the big mockups use.
+        static let renderSide = 512
+        /// Padding around the mockups (smaller than the gallery's 48 so all
+        /// four fit on a landscape screen).
+        static let screenPadding: CGFloat = 32
+        static let cardHeight: CGFloat = 262
+        static let appIcon: CGFloat = 150
+        /// The app-icon corner as a share of its side (the home-screen look).
+        static let appIconCornerRatio: CGFloat = 0.225
+        static let sticker: CGFloat = 170
+        static let stickerRim: CGFloat = 12
+        /// The tiny test, in points (each drawn at its own size).
+        static let tinySizes: [CGFloat] = [96, 48, 24, 16]
+        static let lightDarkLogo: CGFloat = 112
+        static let captionStrip: CGFloat = 52
     }
 
     /// The small square on a prompt card.

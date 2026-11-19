@@ -1,6 +1,8 @@
 #if DEBUG
 import PencilKit
 import SwiftUI
+import UIKit.UIGestureRecognizerSubclass
+import os
 
 /// DEBUG-only launch flags for UI tests and screenshots (release builds have
 /// no trace of them):
@@ -9,6 +11,7 @@ import SwiftUI
 ///   weeks, one sketch-only) so the gallery has something to show.
 /// - `-seedBrokenProject YES`: add a project folder whose project.json is garbage.
 /// - `-openNewLogo YES`: open straight onto a new blank logo (the canvas UI tests).
+/// - `-traceTouches YES`: log every touch and tool change (see `TouchTrace`).
 enum DebugLaunch {
     private static var defaults: UserDefaults { .standard }
 
@@ -97,5 +100,64 @@ enum SampleProjects {
         }
         return outline + [CGPoint(x: 260, y: 640), CGPoint(x: 780, y: 400)]
     }
+}
+#endif
+
+#if DEBUG
+/// With `-traceTouches YES`, every touch phase in the window (where it
+/// landed, which view, the recognizers' states) and every tool change go to
+/// the unified log, category "touchtrace". No UI, so it re-renders nothing.
+/// Read it with `xcrun simctl spawn <device> log show --predicate
+/// 'category == "touchtrace"'`. Made for the step 6 lost-first-tap hunt.
+@MainActor
+enum TouchTrace {
+    static let log = Logger(subsystem: "com.owaistaha.doodlemark", category: "touchtrace")
+    static var enabled: Bool { UserDefaults.standard.bool(forKey: "traceTouches") }
+    private static let start = Date()
+
+    static func note(_ message: String) {
+        guard enabled else { return }
+        let t = String(format: "%.2f", Date().timeIntervalSince(start))
+        log.notice("TRACE t\(t, privacy: .public) \(message, privacy: .public)")
+    }
+
+    static func install() {
+        guard enabled else { return }
+        note("start")
+        Task { @MainActor in
+            for _ in 0..<400 {
+                let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+                    window.addGestureRecognizer(TouchLogger())
+                    note("installed on key window \(window.bounds.size)")
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+    }
+}
+
+/// Sees every touch in a window without taking part.
+private final class TouchLogger: UIGestureRecognizer {
+    init() {
+        super.init(target: nil, action: nil)
+        cancelsTouchesInView = false
+        delaysTouchesBegan = false
+        delaysTouchesEnded = false
+    }
+    private func note(_ phase: String, _ touches: Set<UITouch>) {
+        guard let touch = touches.first, let view else { return }
+        let p = touch.location(in: view)
+        let hit = view.hitTest(p, with: nil).map { String(describing: type(of: $0)) } ?? "nil"
+        let others = (touch.gestureRecognizers ?? []).filter { $0 !== self }
+            .map { "\(type(of: $0)):\($0.state.rawValue)" }.joined(separator: ",")
+        TouchTrace.note("\(phase) @\(Int(p.x)),\(Int(p.y)) hit \(hit) recognizers [\(others)]")
+    }
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) { note("began", touches) }
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) { note("ended", touches); state = .failed }
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { note("cancelled", touches); state = .failed }
+    override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
+    override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
 }
 #endif

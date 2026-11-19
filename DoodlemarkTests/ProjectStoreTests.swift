@@ -125,67 +125,200 @@ final class ProjectStoreTests: XCTestCase {
         XCTAssertEqual(loaded.ink.strokes.map { Self.hex($0.ink.color) }, original.ink.strokes.map { Self.hex($0.ink.color) })
     }
 
-    // MARK: Atomic writes
+    // MARK: Atomic saves (one folder swap)
 
-    private struct SimulatedCrash: Error {}
+    /// Every file in a project folder, byte for byte.
+    private func folderContents(_ id: UUID) -> [String: Data] {
+        let folder = store.folder(for: id)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return Dictionary(uniqueKeysWithValues: names.map { ($0, (try? Data(contentsOf: folder.appending(path: $0))) ?? Data()) })
+    }
 
-    /// A crash part-way through writing any file of a save never corrupts
-    /// the project: every file is a whole one (the old version or the new),
-    /// project.json is the last good one, and it opens.
-    func testACrashMidSaveKeepsTheLastGoodSave() throws {
-        let good = Self.fullProject()
-        try save(good)
+    /// A second save that changes every file: new name, a shape gone, an
+    /// extra ink line in a recolored palette (ink colors follow the palette
+    /// by exact color, so a mix of saves would break recolor).
+    private static func newerSave(of good: LoadedProject) -> LoadedProject {
         var newer = good
         newer.project.name = "Newer"
         newer.project.shapes.removeAll()
-        newer.ink.strokes.append(newer.ink.strokes[0])
-
-        for crashAt in 1...4 {                               // sketch, ink, thumbnail, project.json
-            var writes = 0
-            store.writeTemporaryFile = { data, url in
-                writes += 1
-                if writes == crashAt {
-                    try data.prefix(data.count / 2).write(to: url)    // half written…
-                    throw SimulatedCrash()                            // …then the app dies
-                }
-                try data.write(to: url)
+        newer.project.palette[1] = HexColor("#1E88E5")!
+        newer.project.updatedAt = good.project.updatedAt.addingTimeInterval(60)
+        newer.ink.strokes = newer.ink.strokes.map { stroke in
+            var stroke = stroke
+            if Self.hex(stroke.ink.color) == good.project.palette[1].hexString {
+                stroke.ink = PKInk(.monoline, color: UIColor(cgColor: newer.project.palette[1].cgColor))
             }
-            XCTAssertThrowsError(try save(newer), "crash at write \(crashAt)")
-            let loaded = try store.load(good.project.id)
-            XCTAssertEqual(loaded.project, good.project, "crash at write \(crashAt): project.json is the old one")
-            XCTAssertEqual(loaded.sketch.strokes.count, good.sketch.strokes.count)
-            let inkLines = loaded.ink.strokes.count
-            XCTAssertTrue(inkLines == good.ink.strokes.count || inkLines == newer.ink.strokes.count,
-                          "crash at write \(crashAt): ink.drawing is a whole old or new file, never half")
-            XCTAssertEqual(store.entries().count, 1)
-            guard case .project? = store.entries().first else { return XCTFail("never the error card") }
+            return stroke
         }
-        store.writeTemporaryFile = { data, url in try data.write(to: url) }
+        newer.ink.strokes.append(newer.ink.strokes[0])
+        newer.sketch.strokes.removeAll()
+        return newer
     }
 
-    /// Leftover temp files from a killed save are never read, and the next
-    /// save clears them.
-    func testLeftoverTempFilesAreIgnoredAndCleanedUp() throws {
+    /// Where a save can be cut off: after each step, or half-way through
+    /// writing each file.
+    private enum CrashPoint: CustomStringConvertible {
+        case after(ProjectStore.SaveStep)
+        case tornWrite(String)
+
+        static var all: [CrashPoint] {
+            ProjectStore.SaveStep.allCases.map { .after($0) }
+                + [ProjectStore.FileName.sketch, ProjectStore.FileName.ink, ProjectStore.FileName.thumbnail,
+                   ProjectStore.FileName.project].map { .tornWrite($0) }
+        }
+
+        /// Only a crash after the swap has the new save.
+        var keepsNewSave: Bool {
+            if case .after(.swapped) = self { true } else { false }
+        }
+
+        var description: String {
+            switch self {
+            case .after(let step): "after \(step)"
+            case .tornWrite(let name): "half-way through \(name)"
+            }
+        }
+    }
+
+    /// Arms the store to "die" at `point`. Real writes are recorded so the
+    /// test knows the exact bytes of the new save.
+    private func arm(_ point: CrashPoint, recording written: @escaping (String, Data) -> Void) {
+        store.stepHook = { step in
+            if case .after(let at) = point, at == step { throw ProjectStore.SaveInterrupted() }
+        }
+        store.writeTemporaryFile = { data, url in
+            written(url.lastPathComponent, data)
+            if case .tornWrite(let name) = point, name == url.lastPathComponent {
+                try data.prefix(data.count / 2).write(to: url)
+                throw ProjectStore.SaveInterrupted()
+            }
+            try data.write(to: url)
+        }
+    }
+
+    /// "Relaunch": a fresh store on the same folder, tidied like at launch.
+    private func relaunch() {
+        store = ProjectStore(root: root)
+        store.removeLeftovers()
+    }
+
+    /// The user's ask: a crash at any point of a save leaves the full old
+    /// save or the full new save, every file byte for byte, never a mix.
+    func testACrashAnywhereInASaveLeavesTheFullOldOrTheFullNewSave() throws {
+        let good = Self.fullProject()
+        let newer = Self.newerSave(of: good)
+        let id = good.project.id
+        for point in CrashPoint.all {
+            store = ProjectStore(root: root)
+            try save(good)
+            let old = folderContents(id)
+            XCTAssertEqual(Set(old.keys), ["project.json", "sketch.drawing", "ink.drawing", "thumb.png"])
+            var new: [String: Data] = [:]
+            arm(point) { name, data in new[name] = data }
+
+            XCTAssertThrowsError(try save(newer), "\(point)")
+            relaunch()
+
+            let after = folderContents(id)
+            if point.keepsNewSave {
+                XCTAssertEqual(after, new, "\(point): the full new save")
+                XCTAssertEqual(try store.load(id).project, newer.project, "\(point)")
+            } else {
+                XCTAssertEqual(after, old, "\(point): the full old save, every file")
+                XCTAssertEqual(try store.load(id).project, good.project, "\(point)")
+            }
+            XCTAssertNotEqual(old, new, "the two saves differ in every way that matters")
+            let loaded = try store.load(id)
+            let palette = Set(loaded.project.palette.map(\.hexString))
+            for stroke in loaded.ink.strokes {
+                XCTAssertTrue(palette.contains(Self.hex(stroke.ink.color) ?? "?"),
+                              "\(point): every ink line still matches a palette slot")
+            }
+            XCTAssertEqual(store.entries().count, 1, "\(point)")
+            guard case .project? = store.entries().first else { return XCTFail("\(point): never the error card") }
+            try store.delete(id)
+        }
+    }
+
+    /// A brand-new project that dies mid-save leaves nothing (no empty or
+    /// error card), or the whole project once the swap is done.
+    func testACrashInTheFirstSaveLeavesNoProjectOrTheWholeOne() throws {
+        let fresh = Self.fullProject()
+        for point in CrashPoint.all {
+            store = ProjectStore(root: root)
+            var new: [String: Data] = [:]
+            arm(point) { name, data in new[name] = data }
+            XCTAssertThrowsError(try save(fresh), "\(point)")
+            relaunch()
+            if point.keepsNewSave {
+                XCTAssertEqual(folderContents(fresh.project.id), new, "\(point)")
+                XCTAssertEqual(store.entries().count, 1, "\(point)")
+            } else {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: store.folder(for: fresh.project.id).path), "\(point)")
+                XCTAssertEqual(store.entries(), [], "\(point): no card at all")
+            }
+            try store.delete(fresh.project.id)
+        }
+    }
+
+    /// Rename is a whole-folder save too.
+    func testACrashMidRenameLeavesTheOldOrTheNewName() throws {
+        let good = Self.fullProject()
+        for point in CrashPoint.all where !{ if case .tornWrite(ProjectStore.FileName.thumbnail) = point { true } else { false } }() {
+            store = ProjectStore(root: root)
+            try save(good)
+            let old = folderContents(good.project.id)
+            arm(point) { _, _ in }
+            XCTAssertThrowsError(try store.rename(good.project.id, to: "Rocket Pizza"), "\(point)")
+            relaunch()
+            let after = folderContents(good.project.id)
+            if point.keepsNewSave {
+                XCTAssertEqual(try store.load(good.project.id).project.name, "Rocket Pizza", "\(point)")
+                XCTAssertEqual(after.filter { $0.key != "project.json" }, old.filter { $0.key != "project.json" },
+                               "\(point): the other files carried over byte for byte")
+            } else {
+                XCTAssertEqual(after, old, "\(point)")
+            }
+            try store.delete(good.project.id)
+        }
+    }
+
+    /// Leftovers of a killed save (staging folders, step 6 temp files) are
+    /// never read or listed, and launch and the next save clear them.
+    func testLeftoversAreIgnoredAndCleanedUp() throws {
         let good = Self.fullProject()
         try save(good)
+        arm(.after(.wroteProject)) { _, _ in }
+        XCTAssertThrowsError(try save(Self.newerSave(of: good)))
+        let staging = root.appending(path: ".staging")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path).count, 1, "a crash left its staging folder")
         let folder = store.folder(for: good.project.id)
-        let leftover = folder.appending(path: ".project.json.saving-\(UUID().uuidString)")
-        try Data("{ half a fi".utf8).write(to: leftover)
+        let oldTemp = folder.appending(path: ".project.json.saving-\(UUID().uuidString)")
+        try Data("{ half a fi".utf8).write(to: oldTemp)
 
+        store = ProjectStore(root: root)
         XCTAssertEqual(try store.load(good.project.id).project, good.project)
+        XCTAssertEqual(store.entries().count, 1, "staging is never a card")
         guard case .project? = store.entries().first else { return XCTFail("still a normal card") }
-        XCTAssertEqual(store.entries().count, 1)
-        try save(good)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: leftover.path))
+
+        try save(good)                                      // the next save of that project tidies its own
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: staging.path), [])
+        store.removeLeftovers()                             // launch tidies everything
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldTemp.path))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), [good.project.id.uuidString])
     }
 
-    func testAtomicWriteReplacesTheWholeFile() throws {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let url = root.appending(path: "file.txt")
-        try store.writeAtomically(Data(repeating: 1, count: 1000), to: url)
-        try store.writeAtomically(Data(repeating: 2, count: 10), to: url)
-        XCTAssertEqual(try Data(contentsOf: url), Data(repeating: 2, count: 10))
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["file.txt"], "no temp left")
+    /// An ordinary failure (disk full) cleans up its staging folder and
+    /// keeps the old save.
+    func testAFailedWriteKeepsTheOldSaveAndLeavesNoStaging() throws {
+        let good = Self.fullProject()
+        try save(good)
+        let old = folderContents(good.project.id)
+        store.writeTemporaryFile = { _, _ in throw CocoaError(.fileWriteOutOfSpace) }
+        XCTAssertThrowsError(try save(Self.newerSave(of: good)))
+        XCTAssertEqual(folderContents(good.project.id), old)
+        XCTAssertEqual((try? FileManager.default.contentsOfDirectory(atPath: root.appending(path: ".staging").path)) ?? [], [])
     }
 
     // MARK: Gallery

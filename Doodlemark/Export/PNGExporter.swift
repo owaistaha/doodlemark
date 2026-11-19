@@ -2,20 +2,26 @@ import PencilKit
 import UIKit
 
 /// Draws a logo the way it's exported: Shapes, then Ink, then Text, on a
-/// transparent square. The Sketch layer is never in it (CLAUDE.md).
-/// Gallery thumbnails use it now; the share-sheet PNG (step 7) will too.
+/// transparent square (or a flat color). The Sketch layer is never in it
+/// (CLAUDE.md): there's no sketch parameter to pass. Gallery thumbnails,
+/// the export mockups and the share-sheet PNG all use it.
 enum PNGExporter {
-    /// The logo at `pixelSide` × `pixelSide` pixels, transparent background.
+    /// The logo at `pixelSide` × `pixelSide` pixels. `background` nil is
+    /// transparent; otherwise the square is filled with it first.
     @MainActor
-    static func image(project: Project, ink: PKDrawing, pixelSide: Int) -> UIImage {
+    static func image(project: Project, ink: PKDrawing, pixelSide: Int, background: HexColor? = nil) -> UIImage {
         renderer(pixelSide: pixelSide).image { context in
+            if let background {
+                context.cgContext.setFillColor(background.cgColor)
+                context.cgContext.fill(CGRect(x: 0, y: 0, width: pixelSide, height: pixelSide))
+            }
             draw(project: project, ink: ink, in: context.cgContext, pixelSide: pixelSide)
         }
     }
 
     @MainActor
-    static func pngData(project: Project, ink: PKDrawing, pixelSide: Int) -> Data? {
-        image(project: project, ink: ink, pixelSide: pixelSide).pngData()
+    static func pngData(project: Project, ink: PKDrawing, pixelSide: Int, background: HexColor? = nil) -> Data? {
+        image(project: project, ink: ink, pixelSide: pixelSide, background: background).pngData()
     }
 
     /// Exactly `pixelSide` pixels (scale 1), with alpha.

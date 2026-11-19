@@ -243,3 +243,50 @@ blank canvas at 100%.
     and the projects don't appear in the Files app (they're app data, not
     documents).
     *Expected:* as described; note it if projects do show up in Files.
+47. [ ] **Crash mid-save (folder swap).** Draw a few Ink lines, change the
+    palette with "Try another", and within a second swipe up to the app
+    switcher and force-quit. Repeat 5 times at slightly different moments.
+    *Expected:* every time the logo opens, and every Ink line still follows
+    its palette color (tap and hold a swatch, change it: the matching lines
+    change too). Never an error card, never lines left in an old color.
+
+## Step 7: Preview & export
+
+48. [ ] **Nothing to export.** New logo, tap "Preview & export" straight
+    away; then draw only on Sketch and tap it again.
+    *Expected:* both times "Draw something first." with OK, and no export
+    screen or share sheet.
+49. [ ] **Mockups.** Make a logo with a shape, Ink and a name, tap "Preview &
+    export".
+    *Expected:* app icon, sticker, tiny test and light & dark all show your
+    real logo (not the sketch), sharp on the Retina screen; the 16 pt one is
+    tiny but crisp.
+50. [ ] **AirDrop.** Export & share → AirDrop to a Mac or iPhone.
+    *Expected:* both files arrive with the name from the field
+    (`pizza-rocket.svg`, `pizza-rocket.png`).
+51. [ ] **Save to Files.** Export & share → Save to Files → On My iPad.
+    *Expected:* the SVG and PNG are there and open in Files' preview.
+52. [ ] **Save Image to Photos.** Untick SVG, keep PNG, Export & share →
+    Save Image.
+    *Expected:* the first time, iPadOS asks with "Doodlemark saves your logo
+    picture to your photos when you tap Save Image. It never looks at your
+    other photos." Allow: the 1024 × 1024 picture is in Photos (transparent
+    shows on the Photos background). Don't allow: no crash, just no picture.
+53. [ ] **Open the SVG in Safari.** Open the saved SVG in Safari (Files →
+    share → Safari, or AirDrop it to a Mac).
+    *Expected:* it looks the same as the canvas: same shapes, lines, text
+    and colors, nothing missing or shifted, and no sketch.
+54. [ ] **Open the SVG in Figma** (or Illustrator/Inkscape, if you have one).
+    *Expected:* it imports as vector paths (text is outlines, so it looks
+    right without the font), three groups: shapes, ink, text.
+55. [ ] **Transparent vs paper.** Export the PNG twice, with and without
+    Transparent background, and open both in Photos or on a dark Mac
+    Preview background.
+    *Expected:* one has see-through corners, the other a cream (#FBF8F2)
+    square behind the logo.
+56. [ ] **File name.** Type "Space Cat/2!" into File name.
+    *Expected:* the line under it says "Saves Space-Cat-2.svg and
+    Space-Cat-2.png", and the shared files have exactly those names.
+57. [ ] **Back to drawing.** Tap "Back to drawing" after sharing.
+    *Expected:* the canvas is exactly as it was (same tool, layers, zoom),
+    and the gallery card is up to date.

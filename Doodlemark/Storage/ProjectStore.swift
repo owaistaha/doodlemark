@@ -88,10 +88,13 @@ enum GalleryEntry: Identifiable, Equatable {
 ///       ink.drawing     PKDrawing.dataRepresentation()
 ///       thumb.png       512 px, Shapes + Ink + Text (the sketch only if that's all there is)
 ///
-/// Every file is written to a temp file in the same folder and then renamed
-/// over the old one (`rename(2)` is atomic), so a crash mid-save leaves the
-/// old file or the new one, never half of one. `project.json` is written
-/// last: a folder always has a complete set of files from some save.
+/// A save is one folder swap: every file is written into a fresh staging
+/// folder (`Projects/.staging/<uuid>-<random>/`, hidden, same volume), and
+/// then `FileManager.replaceItemAt` swaps that whole folder in for the
+/// project's (`rename(2)` with `RENAME_SWAP` on APFS, atomic). A crash at
+/// any point leaves the full old save or the full new one, never a mix:
+/// Ink colors are linked to palette slots by exact color, so an ink.drawing
+/// from one save next to a project.json from another could break recolor.
 @MainActor
 final class ProjectStore {
     enum FileName {
@@ -99,8 +102,18 @@ final class ProjectStore {
         static let sketch = "sketch.drawing"
         static let ink = "ink.drawing"
         static let thumbnail = "thumb.png"
-        /// Temp files are ".<name>.saving-<uuid>": hidden, and never read.
+        /// Where saves are put together before the swap. Hidden, so the
+        /// gallery never lists it.
+        static let staging = ".staging"
+        /// Step 6 wrote ".<name>.saving-<uuid>" temp files inside a project
+        /// folder. Still cleaned up, in case an old build was killed mid-save.
         static let savingMarker = ".saving-"
+    }
+
+    /// The points a save passes, in order. Tests stop a save at each one to
+    /// stand in for a crash there.
+    enum SaveStep: CaseIterable {
+        case createdStaging, wroteSketch, wroteInk, wroteThumbnail, wroteProject, swapped
     }
 
     enum Failure: Error, Equatable {
@@ -116,8 +129,14 @@ final class ProjectStore {
     let root: URL
     private let files = FileManager.default
 
-    /// Writes the temp file. Tests swap it to simulate a crash part-way through.
+    /// Writes one file into the staging folder. Tests swap it to fail a write.
     var writeTemporaryFile: (Data, URL) throws -> Void = { data, url in try data.write(to: url) }
+    /// Called at each `SaveStep`. Tests throw `SaveInterrupted` from it to
+    /// leave everything as a crash at that point would.
+    var stepHook: ((SaveStep) throws -> Void)?
+
+    /// Thrown by test hooks: the "app died" here, so nothing is cleaned up.
+    struct SaveInterrupted: Error {}
 
     init(root: URL = ProjectStore.defaultRoot) {
         self.root = root
@@ -127,48 +146,71 @@ final class ProjectStore {
         root.appending(path: id.uuidString, directoryHint: .isDirectory)
     }
 
+    private var stagingRoot: URL {
+        root.appending(path: FileName.staging, directoryHint: .isDirectory)
+    }
+
     // MARK: Save
 
     /// Writes the whole project. `project.updatedAt` is saved as given.
+    /// With no thumbnail the save has none (the card shows a blank tile)
+    /// rather than an older one that no longer matches.
     func save(_ project: Project, sketch: PKDrawing, ink: PKDrawing, thumbnail: Data?) throws {
-        let folder = folder(for: project.id)
-        try files.createDirectory(at: folder, withIntermediateDirectories: true)
-        removeTemporaryFiles(in: folder)
-        try writeAtomically(sketch.dataRepresentation(), to: folder.appending(path: FileName.sketch))
-        try writeAtomically(ink.dataRepresentation(), to: folder.appending(path: FileName.ink))
-        if let thumbnail {
-            try writeAtomically(thumbnail, to: folder.appending(path: FileName.thumbnail))
-        }
-        try writeProjectFile(project, in: folder)
+        let json = try ProjectCoding.makeEncoder().encode(ProjectFile(project: project))
+        var contents: [(String, Data, SaveStep)] = [
+            (FileName.sketch, sketch.dataRepresentation(), .wroteSketch),
+            (FileName.ink, ink.dataRepresentation(), .wroteInk),
+        ]
+        if let thumbnail { contents.append((FileName.thumbnail, thumbnail, .wroteThumbnail)) }
+        contents.append((FileName.project, json, .wroteProject))
+        try commit(contents, to: project.id)
     }
 
-    private func writeProjectFile(_ project: Project, in folder: URL) throws {
-        let data = try ProjectCoding.makeEncoder().encode(ProjectFile(project: project))
-        try writeAtomically(data, to: folder.appending(path: FileName.project))
-    }
-
-    /// Temp file, then rename over the destination.
-    func writeAtomically(_ data: Data, to destination: URL) throws {
-        let temp = destination.deletingLastPathComponent()
-            .appending(path: "." + destination.lastPathComponent + FileName.savingMarker + UUID().uuidString)
+    /// Stages the files and swaps the folder in.
+    private func commit(_ contents: [(name: String, data: Data, step: SaveStep)], to id: UUID) throws {
+        removeStaging(for: id)
+        let destination = folder(for: id)
+        let staging = stagingRoot.appending(path: "\(id.uuidString)-\(UUID().uuidString)", directoryHint: .isDirectory)
         do {
-            try writeTemporaryFile(data, temp)
+            try files.createDirectory(at: staging, withIntermediateDirectories: true)
+            try stepHook?(.createdStaging)
+            for (name, data, step) in contents {
+                try writeTemporaryFile(data, staging.appending(path: name))
+                try stepHook?(step)
+            }
+            if files.fileExists(atPath: destination.path) {
+                _ = try files.replaceItemAt(destination, withItemAt: staging)
+            } else {
+                try files.createDirectory(at: root, withIntermediateDirectories: true)
+                try files.moveItem(at: staging, to: destination)
+            }
+            try stepHook?(.swapped)
+        } catch let crash as SaveInterrupted {
+            throw crash                                     // a crash cleans nothing up
         } catch {
-            try? files.removeItem(at: temp)
+            try? files.removeItem(at: staging)
             throw error
         }
-        guard Darwin.rename(temp.path, destination.path) == 0 else {
-            let code = errno
-            try? files.removeItem(at: temp)
-            throw CocoaError(.fileWriteUnknown, userInfo: [NSUnderlyingErrorKey: POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)])
+    }
+
+    /// A project's staging folders left by a save that never finished.
+    private func removeStaging(for id: UUID) {
+        let names = (try? files.contentsOfDirectory(atPath: stagingRoot.path)) ?? []
+        for name in names where name.hasPrefix(id.uuidString) {
+            try? files.removeItem(at: stagingRoot.appending(path: name))
         }
     }
 
-    /// Leftovers of a save that never finished (the app was killed).
-    private func removeTemporaryFiles(in folder: URL) {
-        let names = (try? files.contentsOfDirectory(atPath: folder.path)) ?? []
-        for name in names where name.contains(FileName.savingMarker) {
-            try? files.removeItem(at: folder.appending(path: name))
+    /// At launch: drop every unfinished save (staging folders and step 6's
+    /// temp files). They're never read, so this is only tidying.
+    func removeLeftovers() {
+        try? files.removeItem(at: stagingRoot)
+        let folders = (try? files.contentsOfDirectory(atPath: root.path)) ?? []
+        for folder in folders where !folder.hasPrefix(".") {
+            let url = root.appending(path: folder, directoryHint: .isDirectory)
+            for name in (try? files.contentsOfDirectory(atPath: url.path)) ?? [] where name.contains(FileName.savingMarker) {
+                try? files.removeItem(at: url.appending(path: name))
+            }
         }
     }
 
@@ -237,12 +279,20 @@ final class ProjectStore {
         return entries.sorted { $0.sortDate != $1.sortDate ? $0.sortDate > $1.sortDate : $0.id < $1.id }
     }
 
-    /// Changes only the name (and not "last edited").
+    /// Changes only the name (and not "last edited"). Still a whole-folder
+    /// save: the other files are carried over byte for byte.
     func rename(_ id: UUID, to name: String) throws {
         let folder = folder(for: id)
         var project = try readProjectFile(in: folder)
         project.name = name
-        try writeProjectFile(project, in: folder)
+        var contents: [(String, Data, SaveStep)] = []
+        for (file, step) in [(FileName.sketch, SaveStep.wroteSketch), (FileName.ink, .wroteInk), (FileName.thumbnail, .wroteThumbnail)] {
+            let url = folder.appending(path: file)
+            guard files.fileExists(atPath: url.path) else { continue }
+            contents.append((file, try Data(contentsOf: url), step))
+        }
+        contents.append((FileName.project, try ProjectCoding.makeEncoder().encode(ProjectFile(project: project)), .wroteProject))
+        try commit(contents, to: id)
     }
 
     /// A deep copy in a new folder: new id, "<name> copy", edited now, so it

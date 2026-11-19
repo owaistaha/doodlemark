@@ -117,6 +117,27 @@ thicker border or a weight change.
   back to blank. "Selected: …" and "Start drawing →" at the bottom.
 - 10 prompts, 9 shown; Shuffle always brings in the hidden one.
 
+## Layout (Preview & export, design/Export.png)
+- Opens full screen over the canvas. Top bar: "‹ Back to drawing" (white,
+  56 pt) and "Preview & export" (heading).
+- Left, on `paper`: "<Name>, out in the world" (display) and "A good logo
+  works big, tiny, light and dark. Check yours here." Then a 2 × 2 grid of
+  mockup cards (radius 28, 262 pt tall, 32 pt screen padding so all four fit
+  in landscape): App icon (white card, the logo on
+  paper in a 150 pt rounded tile with the mockup shadow), Sticker
+  (`pencilBlue` card, white-rimmed 170 pt circle, white caption), Tiny test
+  (96 · 48 · 24 · 16 pt, "Can you still tell what it is?"), Light & dark
+  (paper and ink halves, caption strip).
+- Right panel (400 pt, white): "Export" (title), the SVG card ("Vector"
+  badge in `pencilBlue`) and the PNG · 1024 × 1024 card. On = `blueTint`
+  with a 2 pt `pencilBlue` border and a blue checkbox; off = white with a
+  hairline. Transparent background row with a checkbox (faded when PNG is
+  off). File name field on `paper` (56 pt) and a small line showing the
+  cleaned name. "Export & share" (tangerine, 56 pt) at the bottom, and
+  "Your sketch layer stays private. It's never exported." under it.
+- Nothing to export: an alert "Draw something first." ("Ink a line, add a
+  shape or type a name. Your sketch stays private, so it doesn't count.").
+
 ## Voice
 Friendly words over jargon: "Smooth my lines", not "stroke stabilization";
 "Mirror", not "symmetry guide"; "Your sketch layer stays private. It's never
